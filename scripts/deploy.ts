@@ -13,7 +13,7 @@ async function main() {
   );
 
   // ── 1. Deploy MockUSDC ───────────────────────────────────────────────────
-  console.log("\n[1/4] Deploying MockUSDC...");
+  console.log("\n[1/3] Deploying MockUSDC...");
   const MockUSDC = await hre.ethers.getContractFactory("MockUSDC");
   const usdc = await MockUSDC.deploy();
   await usdc.waitForDeployment();
@@ -21,42 +21,36 @@ async function main() {
   console.log("MockUSDC deployed to:", usdcAddress);
 
   // ── 2. Deploy SpendGuard ─────────────────────────────────────────────────
-  console.log("\n[2/4] Deploying SpendGuard...");
+  console.log("\n[2/3] Deploying SpendGuard...");
   const SpendGuard = await hre.ethers.getContractFactory("SpendGuard");
   const spendGuard = await SpendGuard.deploy(usdcAddress);
   await spendGuard.waitForDeployment();
   const spendGuardAddress = await spendGuard.getAddress();
   console.log("SpendGuard deployed to:", spendGuardAddress);
 
-  console.log("\n[3/4] Seeding SpendGuard with 1,000 test USDC...");
+  // ── 3. Mint test USDC to deployer for testing ────────────────────────────
+  console.log("\n[3/3] Minting 1,000 test USDC to deployer account...");
   const SEED_AMOUNT = ethers.parseUnits("1000", 6); // 1000 USDC (6 decimals)
   
   const mintTx = await usdc.mint(deployer?.address, SEED_AMOUNT);
   await mintTx.wait(); // Wait for mint to be mined
   
-  const approveTx = await usdc.approve(spendGuardAddress, SEED_AMOUNT);
-  await approveTx.wait(); // Wait for approval to be mined
-  
-  const depositTx = await spendGuard.deposit(SEED_AMOUNT);
-  await depositTx.wait(); // Wait for deposit to be mined
-  
-  console.log("SpendGuard funded with 1,000 USDC");
+  console.log("Minted 1,000 MockUSDC to deployer for testing deposits");
 
   // ── 4. Save Contract Data for Frontend ───────────────────────────────────
-  console.log("\n[4/4] Saving ABIs and addresses to src/contracts...");
+  console.log("\nSaving ABIs and addresses to src/contracts...");
   saveFrontendFiles(usdcAddress, spendGuardAddress);
 
   // ── Summary ──────────────────────────────────────────────────────────────
   console.log("\n═══════════════════════════════════════════════════════");
-  console.log("  DEPLOYMENT COMPLETE");
+  console.log("   DEPLOYMENT COMPLETE");
   console.log("═══════════════════════════════════════════════════════");
-  console.log("  MockUSDC   :", usdcAddress);
-  console.log("  SpendGuard :", spendGuardAddress);
+  console.log("   MockUSDC   :", usdcAddress);
+  console.log("   SpendGuard :", spendGuardAddress);
   console.log("═══════════════════════════════════════════════════════");
 }
 
 function saveFrontendFiles(usdcAddress: string, spendGuardAddress: string) {
-  // Use process.cwd() to get the project root directory instead of __dirname
   const contractsDir = path.join(process.cwd(), "src", "contracts");
 
   if (!fs.existsSync(contractsDir)) {
@@ -76,7 +70,7 @@ function saveFrontendFiles(usdcAddress: string, spendGuardAddress: string) {
     )
   );
 
-  // 2. Save ABIs (Extracting only the ABI to keep frontend imports lightweight)
+  // 2. Save ABIs
   const MockUSDCArtifact = hre.artifacts.readArtifactSync("MockUSDC");
   fs.writeFileSync(
     path.join(contractsDir, "MockUSDC.json"),

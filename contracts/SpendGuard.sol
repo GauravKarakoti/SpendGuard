@@ -12,9 +12,9 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
  *         The agent is NOT trusted — the contract is the final authority.
  *
  * Security model:
- *   - Only the owner can create/modify budgets and register agents.
- *   - The agent can only call pay(), which is gated by budget + replay checks.
- *   - Even a fully compromised agent cannot exceed its budget.
+ *   - Any user can register their own agents and create/modify their own budgets.
+ *   - Users deposit funds into isolated user balances; agents can only spend from their owner's balance.
+ *   - The agent can only call pay(), which is gated by budget + balance + replay checks.
  */
 contract SpendGuard is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -37,6 +37,12 @@ contract SpendGuard is Ownable, ReentrancyGuard {
 
     /// @notice agentId => authorized agent address
     mapping(bytes32 => address) public agentAddresses;
+
+    /// @notice agentId => owner/manager of the agent budget
+    mapping(bytes32 => address) public agentOwners;
+
+    /// @notice userAddress => isolated MockUSDC balance deposited
+    mapping(address => uint256) public userBalances;
 
     /// @notice requestId => processed flag (replay protection)
     mapping(bytes32 => bool) public processedRequests;
@@ -83,8 +89,8 @@ contract SpendGuard is Ownable, ReentrancyGuard {
 
     event BudgetPaused(bytes32 indexed agentId);
     event BudgetResumed(bytes32 indexed agentId);
-    event FundsDeposited(address indexed depositor, uint256 amount);
-    event FundsWithdrawn(address indexed recipient, uint256 amount);
+    event FundsDeposited(address indexed user, uint256 amount);
+    event FundsWithdrawn(address indexed user, uint256 amount);
 
     // ─── Errors ─────────────────────────────────────────────────────────────
 
@@ -94,9 +100,10 @@ contract SpendGuard is Ownable, ReentrancyGuard {
     error BudgetAlreadyExists(bytes32 agentId);
     error BudgetDoesNotExist(bytes32 agentId);
     error UnauthorizedAgent(address caller, bytes32 agentId);
+    error NotAgentOwner(address caller, bytes32 agentId);
     error InvalidAmount();
     error InvalidProvider();
-    error InsufficientContractBalance(uint256 available, uint256 required);
+    error InsufficientUserBalance(address user, uint256 available, uint256 required);
 
     // ─── Constructor ────────────────────────────────────────────────────────
 
@@ -105,13 +112,20 @@ contract SpendGuard is Ownable, ReentrancyGuard {
         token = IERC20(_token);
     }
 
-    // ─── Owner-only functions ────────────────────────────────────────────────
+    // ─── User-managed functions (Self-Serve) ─────────────────────────────────
 
     /**
      * @notice Register an agent address for a given agentId.
-     *         Only the registered address may call pay() for this agentId.
      */
-    function registerAgent(bytes32 agentId, address agentAddress) external onlyOwner {
+    function registerAgent(bytes32 agentId, address agentAddress) external {
+        address owner = agentOwners[agentId];
+        if (owner != address(0) && owner != msg.sender) {
+            revert NotAgentOwner(msg.sender, agentId);
+        }
+        if (owner == address(0)) {
+            agentOwners[agentId] = msg.sender;
+        }
+
         require(agentAddress != address(0), "SpendGuard: zero agent address");
         agentAddresses[agentId] = agentAddress;
         emit AgentRegistered(agentId, agentAddress);
@@ -119,10 +133,16 @@ contract SpendGuard is Ownable, ReentrancyGuard {
 
     /**
      * @notice Create a new budget for an agent.
-     * @param agentId     Unique identifier for the agent.
-     * @param budgetLimit Maximum total spend in token base units.
      */
-    function createBudget(bytes32 agentId, uint256 budgetLimit) external onlyOwner {
+    function createBudget(bytes32 agentId, uint256 budgetLimit) external {
+        address owner = agentOwners[agentId];
+        if (owner != address(0) && owner != msg.sender) {
+            revert NotAgentOwner(msg.sender, agentId);
+        }
+        if (owner == address(0)) {
+            agentOwners[agentId] = msg.sender;
+        }
+
         if (budgets[agentId].active) revert BudgetAlreadyExists(agentId);
         require(budgetLimit > 0, "SpendGuard: zero budget limit");
 
@@ -136,10 +156,11 @@ contract SpendGuard is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Update the spending limit for an existing budget.
-     *         The new limit must be >= already spent amount.
+     * @notice Update spending limit for an existing budget.
      */
-    function updateBudgetLimit(bytes32 agentId, uint256 newLimit) external onlyOwner {
+    function updateBudgetLimit(bytes32 agentId, uint256 newLimit) external {
+        if (agentOwners[agentId] != msg.sender) revert NotAgentOwner(msg.sender, agentId);
+        
         Budget storage b = budgets[agentId];
         if (!b.active) revert BudgetDoesNotExist(agentId);
         require(newLimit >= b.spent, "SpendGuard: new limit below spent");
@@ -150,9 +171,11 @@ contract SpendGuard is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Pause an agent's budget (blocks all future payments).
+     * @notice Pause an agent's budget.
      */
-    function pauseBudget(bytes32 agentId) external onlyOwner {
+    function pauseBudget(bytes32 agentId) external {
+        if (agentOwners[agentId] != msg.sender) revert NotAgentOwner(msg.sender, agentId);
+        
         Budget storage b = budgets[agentId];
         if (!b.active) revert BudgetDoesNotExist(agentId);
         b.active = false;
@@ -162,7 +185,9 @@ contract SpendGuard is Ownable, ReentrancyGuard {
     /**
      * @notice Resume a paused budget.
      */
-    function resumeBudget(bytes32 agentId) external onlyOwner {
+    function resumeBudget(bytes32 agentId) external {
+        if (agentOwners[agentId] != msg.sender) revert NotAgentOwner(msg.sender, agentId);
+        
         Budget storage b = budgets[agentId];
         require(!b.active, "SpendGuard: budget already active");
         b.active = true;
@@ -170,41 +195,31 @@ contract SpendGuard is Ownable, ReentrancyGuard {
     }
 
     /**
-     * @notice Deposit tokens into the contract so it can fund provider payments.
+     * @notice Deposit tokens into your isolated user vault.
      */
     function deposit(uint256 amount) external {
         require(amount > 0, "SpendGuard: zero deposit");
         token.safeTransferFrom(msg.sender, address(this), amount);
+        userBalances[msg.sender] += amount;
         emit FundsDeposited(msg.sender, amount);
     }
 
     /**
-     * @notice Withdraw tokens from the contract (owner only).
+     * @notice Withdraw tokens from your isolated user vault.
      */
-    function withdraw(address recipient, uint256 amount) external onlyOwner {
-        require(recipient != address(0), "SpendGuard: zero recipient");
-        uint256 bal = token.balanceOf(address(this));
-        if (bal < amount) revert InsufficientContractBalance(bal, amount);
-        token.safeTransfer(recipient, amount);
-        emit FundsWithdrawn(recipient, amount);
+    function withdraw(uint256 amount) external {
+        require(amount > 0, "SpendGuard: zero withdraw");
+        uint256 bal = userBalances[msg.sender];
+        if (bal < amount) revert InsufficientUserBalance(msg.sender, bal, amount);
+        userBalances[msg.sender] -= amount;
+        token.safeTransfer(msg.sender, amount);
+        emit FundsWithdrawn(msg.sender, amount);
     }
 
     // ─── Agent-callable function ─────────────────────────────────────────────
 
     /**
      * @notice Authorize and execute a payment to a provider.
-     *
-     * Hard invariants enforced here (NOT in the agent):
-     *   1. spent + amount <= limit          (BudgetExceeded)
-     *   2. requestId not previously used    (RequestAlreadyProcessed)
-     *   3. budget must be active            (BudgetNotActive)
-     *   4. caller must be registered agent  (UnauthorizedAgent)
-     *
-     * @param agentId     The agent making the payment.
-     * @param requestId   Unique per-request ID (replay protection key).
-     * @param provider    Address of the service provider to pay.
-     * @param amount      Token amount to transfer to provider.
-     * @param serviceHash keccak256 of the service description / delivery proof.
      */
     function pay(
         bytes32 agentId,
@@ -243,15 +258,18 @@ contract SpendGuard is Ownable, ReentrancyGuard {
             revert BudgetExceeded(agentId, b.limit, b.spent, amount);
         }
 
-        // ── Contract balance check ───────────────────────────────────────────
-        uint256 contractBalance = token.balanceOf(address(this));
-        if (contractBalance < amount) {
-            revert InsufficientContractBalance(contractBalance, amount);
+        // ── User isolation balance check ─────────────────────────────────────
+        address owner = agentOwners[agentId];
+        uint256 userBal = userBalances[owner];
+        if (userBal < amount) {
+            emit PaymentRejected(agentId, requestId, amount, "InsufficientUserBalance");
+            revert InsufficientUserBalance(owner, userBal, amount);
         }
 
         // ── State updates (checks-effects-interactions) ──────────────────────
         processedRequests[requestId] = true;
         b.spent = newSpent;
+        userBalances[owner] -= amount; // Deduct strictly from agent owner's balance
 
         // Record service hash as delivery anchor
         if (serviceHash != bytes32(0)) {
@@ -267,18 +285,12 @@ contract SpendGuard is Ownable, ReentrancyGuard {
 
     // ─── View helpers ────────────────────────────────────────────────────────
 
-    /**
-     * @notice Returns remaining budget for an agent.
-     */
     function remainingBudget(bytes32 agentId) external view returns (uint256) {
         Budget storage b = budgets[agentId];
         if (!b.active) return 0;
         return b.limit - b.spent;
     }
 
-    /**
-     * @notice Returns full budget info for an agent.
-     */
     function getBudget(bytes32 agentId) external view returns (
         uint256 limit,
         uint256 spent,
@@ -288,16 +300,10 @@ contract SpendGuard is Ownable, ReentrancyGuard {
         return (b.limit, b.spent, b.active);
     }
 
-    /**
-     * @notice Check whether a requestId has already been processed.
-     */
     function isProcessed(bytes32 requestId) external view returns (bool) {
         return processedRequests[requestId];
     }
 
-    /**
-     * @notice Retrieve the delivery hash recorded for a requestId.
-     */
     function getDeliveryHash(bytes32 requestId) external view returns (bytes32) {
         return deliveryHashes[requestId];
     }

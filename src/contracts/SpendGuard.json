@@ -73,6 +73,11 @@
     {
       "inputs": [
         {
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
           "internalType": "uint256",
           "name": "available",
           "type": "uint256"
@@ -83,7 +88,7 @@
           "type": "uint256"
         }
       ],
-      "name": "InsufficientContractBalance",
+      "name": "InsufficientUserBalance",
       "type": "error"
     },
     {
@@ -94,6 +99,22 @@
     {
       "inputs": [],
       "name": "InvalidProvider",
+      "type": "error"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "caller",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "agentId",
+          "type": "bytes32"
+        }
+      ],
+      "name": "NotAgentOwner",
       "type": "error"
     },
     {
@@ -275,7 +296,7 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "depositor",
+          "name": "user",
           "type": "address"
         },
         {
@@ -294,7 +315,7 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "recipient",
+          "name": "user",
           "type": "address"
         },
         {
@@ -397,6 +418,25 @@
         }
       ],
       "name": "agentAddresses",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "agentOwners",
       "outputs": [
         {
           "internalType": "address",
@@ -736,9 +776,23 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "recipient",
+          "name": "",
           "type": "address"
-        },
+        }
+      ],
+      "name": "userBalances",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
         {
           "internalType": "uint256",
           "name": "amount",

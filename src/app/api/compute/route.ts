@@ -16,10 +16,11 @@
 
 import { createHash } from 'crypto';
 import { simulateContractPay } from '../payment/verify/route';
+import Addresses from '@/contracts/addresses.json';
 
 const PROVIDER_NAME = 'ComputeService';
 const PRICE_USDC = 3_000_000; // $3.00 in 6-decimal USDC
-const PAYMENT_CONTRACT = '0x4f3e9a2b8d1c6e7f3a9b2c8d1e6f7a3b8c2a1d9';
+const PAYMENT_CONTRACT = Addresses.SpendGuard;
 const PAYMENT_NETWORK = 'ethereum-sepolia';
 
 // ---------------------------------------------------------------------------
@@ -138,7 +139,7 @@ export async function POST(request: Request) {
   }
 
   const verificationResult = simulateContractPay({
-    agentId: proof.agentId ?? 'ResearchAgent',
+    agentId: proof.agentId,
     requestId: proof.requestId,
     provider: PROVIDER_NAME,
     amount: PRICE_USDC,
@@ -246,5 +247,6 @@ function sha256Hash(data: string): string {
 }
 
 function keccak256Mock(data: string): string {
-  return '0x' + createHash('sha256').update('keccak:' + data).digest('hex').slice(0, 40);
+  // Returns a full 64-character hex string (32 bytes / bytes32)
+  return '0x' + createHash('sha256').update('keccak:' + data).digest('hex');
 }

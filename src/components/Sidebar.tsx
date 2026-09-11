@@ -1,12 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { LayoutDashboard, ScrollText, Terminal, Shield, ChevronLeft, ChevronRight, Wallet, Settings, ExternalLink,  } from 'lucide-react';
-import Icon from '@/components/ui/AppIcon';
-
+import { LayoutDashboard, ScrollText, Terminal, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import Addresses from '@/contracts/addresses.json';
 
 const NAV_ITEMS = [
   {
@@ -32,18 +31,13 @@ const NAV_ITEMS = [
   },
 ];
 
-const SECONDARY_ITEMS = [
-  { key: 'nav-contract', label: 'Contract', href: '#', icon: Shield },
-  { key: 'nav-wallet', label: 'Wallet', href: '#', icon: Wallet },
-  { key: 'nav-settings', label: 'Settings', href: '#', icon: Settings },
-];
-
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  agentName: string;
 }
 
-export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ collapsed, onToggle, agentName }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -71,8 +65,15 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           <p className="text-xs text-muted-foreground font-medium mb-0.5">Contract</p>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-green" />
-            <p className="hash-text text-green-400 truncate">0x4f3e...8c2a</p>
-            <ExternalLink size={10} className="text-muted-foreground flex-shrink-0" />
+            <p className="hash-text text-green-400 truncate">{Addresses.SpendGuard.slice(0, 6)}...{Addresses.SpendGuard.slice(-4)}</p>
+            <a
+              href={`https://sepolia.etherscan.io/address/${Addresses.SpendGuard}`}
+              className="pointer"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink size={10} className="text-muted-foreground flex-shrink-0" />
+            </a>
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">Sepolia Testnet</p>
         </div>
@@ -111,7 +112,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
                     )}
                   </>
                 )}
-                {/* Tooltip for collapsed */}
                 {collapsed && (
                   <div className="absolute left-full ml-2 px-2 py-1 rounded-md bg-secondary border border-border text-xs text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
                     {item.label}
@@ -129,9 +129,9 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <div className="mx-3 mb-3 px-3 py-2.5 rounded-lg bg-muted border border-border">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse-green" />
-            <span className="text-xs font-semibold text-foreground">ResearchAgent</span>
+            <span className="text-xs font-semibold text-foreground truncate">{agentName}</span>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">Active · Budget $5.00</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Active Agent</p>
         </div>
       )}
 

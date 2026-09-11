@@ -1,0 +1,1 @@
+ALTER TABLE "agents" ADD COLUMN "owner_address" varchar(255) NOT NULL;

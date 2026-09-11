@@ -1,57 +1,68 @@
-import React from 'react';
-import { Shield, CheckCircle2, XCircle } from 'lucide-react';
+'use client';
 
-// BACKEND INTEGRATION: Populated from contract event logs via ethers.js provider.getLogs()
-const CONTRACT_EVENTS = [
-  {
-    id: 'evt-001',
-    event: 'PaymentAuthorized',
-    status: 'success',
-    agentId: 'ResearchAgent',
-    requestId: 'req_8f4a2b3c',
-    provider: 'TranslationService A',
-    amount: '2000000',
-    block: 7842387,
-    txHash: '0xa1b2...a9b0',
-  },
-  {
-    id: 'evt-002',
-    event: 'PaymentAuthorized',
-    status: 'success',
-    agentId: 'ResearchAgent',
-    requestId: 'req_c7d8e9f0',
-    provider: 'ComputeService',
-    amount: '2000000',
-    block: 7842388,
-    txHash: '0xb2c3...b0c1',
-  },
-  {
-    id: 'evt-003',
-    event: 'PaymentRejected',
-    status: 'error',
-    agentId: 'ResearchAgent',
-    requestId: 'req_c7d8e9f0',
-    provider: 'ComputeService',
-    amount: '2000000',
-    block: 7842388,
-    reason: 'RequestAlreadyProcessed',
-    txHash: null,
-  },
-  {
-    id: 'evt-004',
-    event: 'PaymentRejected',
-    status: 'error',
-    agentId: 'ResearchAgent',
-    requestId: 'req_f1a2b3c4',
-    provider: 'PremiumCompute',
-    amount: '3000000',
-    block: 7842389,
-    reason: 'BudgetExceeded',
-    txHash: null,
-  },
-];
+import React, { useState, useEffect } from 'react';
+import { Shield, CheckCircle2, XCircle } from 'lucide-react';
+import { ethers } from 'ethers';
+import SpendGuardABI from '@/contracts/SpendGuard.json';
+import Addresses from '@/contracts/addresses.json';
+
+type LogEvent = {
+  id: string;
+  event: string;
+  status: 'success' | 'error';
+  requestId: string;
+  provider: string;
+  amount: string;
+  block: number;
+  txHash: string;
+  reason?: string;
+};
 
 export default function ContractResponsePanel() {
+  const [events, setEvents] = useState<LogEvent[]>([]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.ethereum) return;
+    
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
+
+    const onAuthorized = (agentId: string, requestId: string, providerAddr: string, amount: bigint, evt: any) => {
+      setEvents(prev => [{
+        id: evt.log.transactionHash,
+        event: 'PaymentAuthorized',
+        status: 'success',
+        requestId: ethers.decodeBytes32String(requestId).replace(/\0/g, ''),
+        provider: providerAddr,
+        amount: ethers.formatUnits(amount, 6),
+        block: evt.log.blockNumber,
+        txHash: evt.log.transactionHash
+      }, ...prev]);
+    };
+
+    const onRejected = (agentId: string, requestId: string, amount: bigint, reason: string, evt: any) => {
+      setEvents(prev => [{
+        id: evt.log.transactionHash,
+        event: 'PaymentRejected',
+        status: 'error',
+        requestId: ethers.decodeBytes32String(requestId).replace(/\0/g, ''),
+        provider: 'N/A',
+        amount: ethers.formatUnits(amount, 6),
+        block: evt.log.blockNumber,
+        txHash: evt.log.transactionHash,
+        reason: reason
+      }, ...prev]);
+    };
+
+    contract.on('PaymentAuthorized', onAuthorized);
+    contract.on('PaymentRejected', onRejected);
+
+    return () => {
+      contract.off('PaymentAuthorized', onAuthorized);
+      contract.off('PaymentRejected', onRejected);
+    };
+  }, []);
+
   return (
     <div className="glass-card rounded-xl flex flex-col">
       <div className="flex items-center gap-2 px-4 py-3.5 border-b border-border">
@@ -60,43 +71,46 @@ export default function ContractResponsePanel() {
         <span className="ml-auto text-xs text-muted-foreground">SpendGuard.sol</span>
       </div>
 
-      <div className="p-3 space-y-2">
-        {CONTRACT_EVENTS?.map((evt) => (
-          <div
-            key={evt?.id}
-            className={`p-3 rounded-lg border text-xs ${
-              evt?.status === 'success' ?'border-green-900 bg-green-950 bg-opacity-30' :'border-red-900 bg-red-950 bg-opacity-30'
-            }`}
-          >
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5">
-                {evt?.status === 'success' ? (
-                  <CheckCircle2 size={12} className="text-primary" />
-                ) : (
-                  <XCircle size={12} className="text-accent" />
-                )}
-                <span className={`font-semibold font-mono ${evt?.status === 'success' ? 'text-primary' : 'text-accent'}`}>
-                  {evt?.event}
-                </span>
+      <div className="p-3 space-y-2 max-h-96 overflow-y-auto">
+        {events.length === 0 ? (
+          <p className="text-xs text-muted-foreground p-2">Waiting for on-chain events...</p>
+        ) : (
+          events.map((evt) => (
+            <div
+              key={evt.id}
+              className={`p-3 rounded-lg border text-xs ${
+                evt.status === 'success' ? 'border-green-900 bg-green-950 bg-opacity-30' : 'border-red-900 bg-red-950 bg-opacity-30'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5">
+                  {evt.status === 'success' ? (
+                    <CheckCircle2 size={12} className="text-primary" />
+                  ) : (
+                    <XCircle size={12} className="text-accent" />
+                  )}
+                  <span className={`font-semibold font-mono ${evt.status === 'success' ? 'text-primary' : 'text-accent'}`}>
+                    {evt.event}
+                  </span>
+                </div>
+                <span className="font-mono text-muted-foreground">#{evt.block}</span>
               </div>
-              <span className="font-mono text-muted-foreground">#{evt?.block}</span>
+              <div className="space-y-0.5 text-muted-foreground font-mono">
+                <div>requestId: <span className="text-foreground">{evt.requestId}</span></div>
+                {evt.status === 'success' && <div>provider: <span className="text-foreground truncate">{evt.provider.slice(0,16)}...</span></div>}
+                <div>amount: <span className="text-foreground">${Number(evt.amount).toFixed(2)} USDC</span></div>
+                {evt.status === 'error' && evt.reason && (
+                  <div>reason: <span className="text-accent">{evt.reason}</span></div>
+                )}
+                {evt.txHash && (
+                  <div>tx: <span className="text-info">{evt.txHash.slice(0, 14)}...</span></div>
+                )}
+              </div>
             </div>
-            <div className="space-y-0.5 text-muted-foreground font-mono">
-              <div>requestId: <span className="text-foreground">{evt?.requestId}</span></div>
-              <div>provider: <span className="text-foreground">{evt?.provider}</span></div>
-              <div>amount: <span className="text-foreground">${(parseInt(evt?.amount) / 1_000_000)?.toFixed(2)} USDC</span></div>
-              {evt?.status === 'error' && 'reason' in evt && (
-                <div>reason: <span className="text-accent">{evt?.reason}</span></div>
-              )}
-              {evt?.txHash && (
-                <div>tx: <span className="text-info">{evt?.txHash}</span></div>
-              )}
-            </div>
-          </div>
-        ))}
+          ))
+        )}
       </div>
 
-      {/* Security proof */}
       <div className="mx-3 mb-3 p-3 rounded-lg bg-muted border border-border">
         <p className="text-xs text-muted-foreground leading-relaxed">
           <span className="text-primary font-semibold">Security proof:</span> All PaymentRejected events originate from the contract layer — not the agent. The agent submitted the transaction; the contract reverted it.
