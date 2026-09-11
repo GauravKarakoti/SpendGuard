@@ -1,69 +1,65 @@
-import Image from "next/image";
+import React from 'react';
+import AppLayout from '@/components/AppLayout';
+import BudgetHeroCard from './components/BudgetHeroCard';
+import KpiCards from './components/KpiCards';
+import LiveActivityFeed from './components/LiveActivityFeed';
+import DemoStepper from './components/DemoStepper';
+import AgentStatusPanel from './components/AgentStatusPanel';
+import ProviderSelectionPanel from './components/ProviderSelectionPanel';
+import TaglineBar from './components/TaglineBar';
 
-export default function Home() {
+export default function MainDashboardPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <AppLayout>
+      <div className="px-6 lg:px-8 xl:px-10 2xl:px-12 py-6 max-w-screen-2xl mx-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">
+              SpendGuard
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Programmable spending controls for autonomous AI agents
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-green" />
+            <span className="font-mono">Sepolia Testnet · Block #7,842,391</span>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        {/* Tagline */}
+        <TaglineBar />
+
+        {/* Budget Hero + KPI row */}
+        {/* Grid plan: 1 hero (col-span-2) + 2 KPIs = 4-col row 1; 4 KPIs row 2 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-4 mt-5">
+          {/* Hero spans 2 cols */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-2 xl:col-span-2 2xl:col-span-2">
+            <BudgetHeroCard />
+          </div>
+          {/* KPI 1 + 2 */}
+          <KpiCards />
         </div>
-      </main>
-    </div>
+
+        {/* Main content grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-4 mt-4">
+          {/* Live Activity Feed — 2 cols */}
+          <div className="col-span-1 lg:col-span-2 xl:col-span-2 2xl:col-span-2">
+            <LiveActivityFeed />
+          </div>
+          {/* Right column */}
+          <div className="col-span-1 flex flex-col gap-4">
+            <AgentStatusPanel />
+            <ProviderSelectionPanel />
+          </div>
+        </div>
+
+        {/* Demo Stepper — full width */}
+        <div className="mt-4">
+          <DemoStepper />
+        </div>
+      </div>
+    </AppLayout>
   );
 }
