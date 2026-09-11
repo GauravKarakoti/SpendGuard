@@ -176,18 +176,16 @@ describe("SpendGuard", function () {
 
   describe("Test 1 — Valid Payment", function () {
     it("should process a valid payment and update spent correctly", async function () {
-      const { spendGuard, agent, provider, AGENT_ID } =
+      const { spendGuard, token, agent, provider, AGENT_ID } =
         await loadFixture(deployFixture);
 
       await spendGuard.createBudget(AGENT_ID, usdc(10));
 
       const REQ_ID = requestId("req-valid-1");
       const SVC_HASH = serviceHash("translation-result");
-      const providerBalBefore = await (
-        await ethers.getContractFactory("MockUSDC")
-      )
-        .attach(await spendGuard.token())
-        .balanceOf(provider.address);
+
+      // 2. Use the strongly-typed token directly
+      const providerBalBefore = await token.balanceOf(provider.address);
 
       await expect(
         spendGuard
@@ -200,10 +198,7 @@ describe("SpendGuard", function () {
       const [, spent] = await spendGuard.getBudget(AGENT_ID);
       expect(spent).to.equal(usdc(3));
 
-      // Provider received the tokens
-      const token = (await ethers.getContractFactory("MockUSDC")).attach(
-        await spendGuard.token()
-      ) as unknown as MockUSDC;
+      // 3. No need to re-attach for the 'after' balance
       const providerBalAfter = await token.balanceOf(provider.address);
       expect(providerBalAfter - providerBalBefore).to.equal(usdc(3));
     });

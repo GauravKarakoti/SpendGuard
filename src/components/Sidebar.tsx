@@ -122,37 +122,6 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </Link>
           );
         })}
-
-        <div className="pt-4">
-          {!collapsed && (
-            <p className="px-3 mb-2 text-xs font-semibold text-muted-foreground uppercase tracking-widest">
-              System
-            </p>
-          )}
-          {SECONDARY_ITEMS.map((item) => {
-            const Icon = item.icon;
-            return (
-              <Link key={item.key} href={item.href}>
-                <div
-                  className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                    transition-all duration-150 cursor-pointer relative group
-                    text-muted-foreground hover:text-foreground hover:bg-secondary
-                    ${collapsed ? 'justify-center' : ''}
-                  `}
-                >
-                  <Icon size={18} className="flex-shrink-0" />
-                  {!collapsed && <span>{item.label}</span>}
-                  {collapsed && (
-                    <div className="absolute left-full ml-2 px-2 py-1 rounded-md bg-secondary border border-border text-xs text-foreground whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                      {item.label}
-                    </div>
-                  )}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
       </nav>
 
       {/* Agent Status */}

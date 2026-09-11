@@ -464,7 +464,7 @@ export default function DemoStepper() {
             <Shield size={18} className="text-primary" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-foreground">Hackathon Demo</h2>
+            <h2 className="text-sm font-bold text-foreground">Demo</h2>
             <p className="text-xs text-muted-foreground">Live HTTP 402 flow · Real contract enforcement · ~90 seconds</p>
           </div>
         </div>
@@ -484,7 +484,7 @@ export default function DemoStepper() {
             ) : (
               <>
                 <Play size={14} />
-                ▶ RUN HACKATHON DEMO
+                RUN DEMO
               </>
             )}
           </button>

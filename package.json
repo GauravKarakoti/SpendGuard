@@ -16,7 +16,6 @@
     "test:gas": "REPORT_GAS=true hardhat test",
     "coverage": "hardhat coverage",
     "node": "hardhat node",
-    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "clean": "hardhat clean"
   },
