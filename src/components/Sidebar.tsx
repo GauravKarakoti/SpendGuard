@@ -16,17 +16,17 @@ const NAV_ITEMS = [
     badge: null,
   },
   {
-    key: 'nav-audit',
-    label: 'Audit Trail',
-    href: '/audit-trail',
-    icon: ScrollText,
-    badge: '12',
-  },
-  {
     key: 'nav-console',
     label: 'Agent Console',
     href: '/agent-console',
     icon: Terminal,
+    badge: null,
+  },
+  {
+    key: 'nav-audit',
+    label: 'Audit Trail',
+    href: '/audit-trail',
+    icon: ScrollText,
     badge: null,
   },
 ];

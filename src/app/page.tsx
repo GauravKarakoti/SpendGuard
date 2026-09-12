@@ -4,13 +4,10 @@ import React, { useState, useEffect } from 'react';
 import AppLayout from '@/components/AppLayout';
 import BudgetHeroCard from './components/BudgetHeroCard';
 import KpiCards from './components/KpiCards';
-import LiveActivityFeed from './components/LiveActivityFeed';
 import AgentStatusPanel from './components/AgentStatusPanel';
-import ProviderSelectionPanel from './components/ProviderSelectionPanel';
 import TaglineBar from './components/TaglineBar';
 import UserAgentRegistration from './components/UserAgentRegistration';
 import FundAgentPanel from './components/FundAgentPanel';
-import AgentCommandPanel from './components/AgentCommandPanel';
 import { Shield, Wallet, Loader2 } from 'lucide-react';
 import { ethers } from 'ethers';
 
@@ -140,22 +137,19 @@ export default function MainDashboardPage() {
         <TaglineBar />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-5">
-          <div className="col-span-1 md:col-span-2">
+          <div className="col-span-2 md:col-span-4">
             <BudgetHeroCard agentName={activeAgentName} />
           </div>
           <KpiCards />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
-          <div className="col-span-1 lg:col-span-2">
-            <LiveActivityFeed />
-          </div>
-          <div className="col-span-1 flex flex-col gap-4">
+          <div className="col-span-2">
             <AgentStatusPanel agentName={activeAgentName} />
-            {activeAgentAddress && <FundAgentPanel agentAddress={activeAgentAddress} />}
-            <ProviderSelectionPanel />
-            {walletAddress && <AgentCommandPanel ownerAddress={walletAddress} />}
           </div>
+          {activeAgentAddress && <div className="col-span-1">
+            <FundAgentPanel agentAddress={activeAgentAddress} />
+          </div>}
         </div>
       </div>
     </AppLayout>

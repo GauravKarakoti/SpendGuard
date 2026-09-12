@@ -23,43 +23,57 @@ export default function ContractResponsePanel() {
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.ethereum) return;
-    
+
     const provider = new ethers.BrowserProvider(window.ethereum);
     const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
 
-    const onAuthorized = (agentId: string, requestId: string, providerAddr: string, amount: bigint, evt: any) => {
-      setEvents(prev => [{
-        id: evt.log.transactionHash,
-        event: 'PaymentAuthorized',
-        status: 'success',
-        requestId: ethers.decodeBytes32String(requestId).replace(/\0/g, ''),
-        provider: providerAddr,
-        amount: ethers.formatUnits(amount, 6),
-        block: evt.log.blockNumber,
-        txHash: evt.log.transactionHash
-      }, ...prev]);
+    const onAuthorized = (agentId: string, requestId: string, providerAddr: string, amount: bigint, eventPayload: any) => {
+      const txHash = eventPayload.log.transactionHash;
+      
+      setEvents(prev => {
+        // DEDUPLICATION CHECK
+        if (prev.some(e => e.txHash === txHash)) return prev;
+        
+        return [{
+          id: txHash,
+          event: 'PaymentAuthorized', // Fixed to match LogEvent type
+          provider: providerAddr,
+          amount: ethers.formatUnits(amount, 6), // Fixed to be a string
+          requestId: ethers.decodeBytes32String(requestId).replace(/\0/g, ''),
+          txHash: txHash,
+          block: eventPayload.log.blockNumber,
+          status: 'success', // Fixed to match 'success' | 'error'
+        }, ...prev];
+      });
     };
 
-    const onRejected = (agentId: string, requestId: string, amount: bigint, reason: string, evt: any) => {
-      setEvents(prev => [{
-        id: evt.log.transactionHash,
-        event: 'PaymentRejected',
-        status: 'error',
-        requestId: ethers.decodeBytes32String(requestId).replace(/\0/g, ''),
-        provider: 'N/A',
-        amount: ethers.formatUnits(amount, 6),
-        block: evt.log.blockNumber,
-        txHash: evt.log.transactionHash,
-        reason: reason
-      }, ...prev]);
+    const onRejected = (agentId: string, requestId: string, amount: bigint, reason: string, eventPayload: any) => {
+      const txHash = eventPayload.log.transactionHash;
+
+      setEvents(prev => {
+        // DEDUPLICATION CHECK
+        if (prev.some(e => e.txHash === txHash)) return prev;
+
+        return [{
+          id: txHash,
+          event: 'PaymentRejected', // Fixed
+          provider: 'Unknown Provider (Revert)',
+          amount: ethers.formatUnits(amount, 6), // Fixed
+          requestId: ethers.decodeBytes32String(requestId).replace(/\0/g, ''),
+          txHash: txHash,
+          block: eventPayload.log.blockNumber,
+          status: 'error', // Fixed
+          reason: reason, // Fixed to match 'reason' instead of 'rejectReason'
+        }, ...prev];
+      });
     };
 
     contract.on('PaymentAuthorized', onAuthorized);
     contract.on('PaymentRejected', onRejected);
 
     return () => {
-      contract.off('PaymentAuthorized', onAuthorized);
-      contract.off('PaymentRejected', onRejected);
+      contract.removeAllListeners('PaymentAuthorized');
+      contract.removeAllListeners('PaymentRejected');
     };
   }, []);
 

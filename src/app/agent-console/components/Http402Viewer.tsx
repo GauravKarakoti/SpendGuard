@@ -38,39 +38,43 @@ export default function Http402Viewer() {
     }
 
     fetchFlows();
-    const interval = setInterval(fetchFlows, 10000);
+    const interval = setInterval(fetchFlows, 8000);
     return () => clearInterval(interval);
   }, [selectedFlow]);
 
   const flow = flows.find((f) => f.id === selectedFlow);
 
+  // Normalize data whether it's stored directly or nested in a body key
+  const r402 = flow?.response402?.body ?? flow?.response402;
+  const r200 = flow?.response200?.body ?? flow?.response200;
+
   return (
     <div className="glass-card rounded-xl flex flex-col min-h-[400px]">
-      <div className="flex items-center justify-between px-4 py-3.5 border-b border-border">
-        <div className="flex items-center gap-2">
+      {/* Header with Dropdown */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <Globe size={15} className="text-cyan-400" />
-          <h3 className="text-sm font-semibold text-foreground">HTTP 402 Flow Interception</h3>
+          <h3 className="text-sm font-semibold text-foreground">HTTP 402 Flow</h3>
         </div>
-        <div className="flex items-center gap-1 overflow-x-auto max-w-[50%]">
-          {flows.map((f) => (
-            <button
-              key={`flowbtn-${f.id}`}
-              onClick={() => setSelectedFlow(f.id)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-all duration-150 whitespace-nowrap ${
-                selectedFlow === f.id
-                  ? 'bg-secondary text-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {f.label.replace('Service', '').replace(' A', ' A').trim()}
-            </button>
-          ))}
-        </div>
+
+        {flows.length > 0 && (
+          <select
+            value={selectedFlow || ''}
+            onChange={(e) => setSelectedFlow(e.target.value)}
+            className="bg-muted text-foreground text-xs font-mono border border-border rounded-lg px-2.5 py-1.5 outline-none focus:border-primary transition-colors cursor-pointer max-w-[200px] truncate"
+          >
+            {flows.map((f) => (
+              <option key={`flowopt-${f.id}`} value={f.id}>
+                {f.label} ({f.endpoint})
+              </option>
+            ))}
+          </select>
+        )}
       </div>
 
       {loading && flows.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 h-64 text-muted-foreground">
-          <Loader2 size={24} className="animate-spin mb-2" />
+          <Loader2 size={24} className="animate-spin mb-2 text-cyan-400" />
           <p className="text-xs">Awaiting HTTP 402 interceptions...</p>
         </div>
       ) : !flow ? (
@@ -78,50 +82,49 @@ export default function Http402Viewer() {
           No HTTP payment flows recorded yet.
         </div>
       ) : (
-        <div className="p-4 space-y-3 overflow-y-auto max-h-[500px]">
+        <div className="p-4 space-y-3 overflow-y-auto max-h-[550px]">
           {/* Step 1: Request */}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs font-mono font-bold text-cyan-400">1</span>
-              <span className="text-xs font-semibold text-foreground">Agent Request (no payment)</span>
+              <span className="text-xs font-mono font-bold text-cyan-400 bg-cyan-950/60 border border-cyan-800/60 px-1.5 py-0.5 rounded">1</span>
+              <span className="text-xs font-semibold text-foreground">Agent Request (no payment header)</span>
             </div>
             <div className="bg-background rounded-lg p-3 border border-border">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-mono font-bold text-cyan-400">{flow.method}</span>
-                <span className="text-xs font-mono text-foreground">{flow.endpoint}</span>
+              <div className="flex items-center gap-2 mb-2 font-mono text-xs">
+                <span className="text-cyan-400 font-bold">{flow.method}</span>
+                <span className="text-foreground">{flow.endpoint}</span>
               </div>
-              <pre className="text-xs font-mono text-muted-foreground overflow-auto leading-relaxed">
+              <pre className="text-xs font-mono text-muted-foreground overflow-auto leading-relaxed bg-black/30 p-2 rounded">
                 {JSON.stringify(flow.requestPayload, null, 2)}
               </pre>
             </div>
           </div>
 
           {/* Step 2: 402 Response */}
-          {flow.response402 && (
+          {r402 && (
             <div>
               <button
-                className="flex items-center gap-2 mb-1.5 w-full text-left"
+                className="flex items-center gap-2 mb-1.5 w-full text-left cursor-pointer"
                 onClick={() => setExpanded402((e) => !e)}
               >
-                <span className="text-xs font-mono font-bold text-warning">2</span>
+                <span className="text-xs font-mono font-bold text-warning bg-amber-950/60 border border-amber-800/60 px-1.5 py-0.5 rounded">2</span>
                 <span className="text-xs font-semibold text-foreground">Provider Returns HTTP 402</span>
-                <span className="ml-auto px-1.5 py-0.5 rounded text-xs font-bold bg-amber-950 text-warning border border-amber-800">
-                  402
+                <span className="ml-auto px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-950 text-warning border border-amber-800">
+                  402 Payment Required
                 </span>
-                {expanded402 ? <ChevronUp size={12} className="text-muted-foreground" /> : <ChevronDown size={12} className="text-muted-foreground" />}
+                {expanded402 ? <ChevronUp size={14} className="text-muted-foreground" /> : <ChevronDown size={14} className="text-muted-foreground" />}
               </button>
+
               {expanded402 && (
-                <div className="bg-background rounded-lg p-3 border border-amber-900 animate-fade-in">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-mono text-warning font-bold">HTTP/1.1 402 Payment Required</span>
+                <div className="bg-background rounded-lg p-3 border border-amber-900/60 space-y-2">
+                  <div className="text-[11px] font-mono text-muted-foreground border-b border-border/60 pb-2 space-y-0.5">
+                    <div>Content-Type: application/json</div>
+                    <div>X-Payment-Required: true</div>
+                    {r402.provider && <div>X-Provider: {r402.provider}</div>}
+                    {r402.price && <div>X-Price-USDC: ${r402.price}</div>}
                   </div>
-                  <div className="text-xs font-mono text-muted-foreground mb-2">
-                    {Object.entries(flow.response402.headers || {}).map(([k, v]) => (
-                      <div key={`hdr-${k}`}>{k}: {String(v)}</div>
-                    ))}
-                  </div>
-                  <pre className="text-xs font-mono text-amber-300 overflow-auto leading-relaxed">
-                    {JSON.stringify(flow.response402.body, null, 2)}
+                  <pre className="text-xs font-mono text-amber-300 overflow-auto leading-relaxed bg-black/30 p-2 rounded">
+                    {JSON.stringify(r402, null, 2)}
                   </pre>
                 </div>
               )}
@@ -129,20 +132,23 @@ export default function Http402Viewer() {
           )}
 
           {/* Step 3: Payment */}
-          {flow.response402?.body?.requestId && (
+          {r402?.requestId && (
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-mono font-bold text-purple-400">3</span>
-                <span className="text-xs font-semibold text-foreground">Agent → SpendGuard.pay()</span>
+                <span className="text-xs font-mono font-bold text-purple-400 bg-purple-950/60 border border-purple-800/60 px-1.5 py-0.5 rounded">3</span>
+                <span className="text-xs font-semibold text-foreground">Agent Authorizes SpendGuard.pay()</span>
+                <span className="ml-auto text-[11px] font-mono text-purple-400 bg-purple-950/40 px-2 py-0.5 rounded border border-purple-900">
+                  On-Chain
+                </span>
               </div>
-              <div className="bg-background rounded-lg p-3 border border-purple-900">
-                <pre className="text-xs font-mono text-purple-300 overflow-auto leading-relaxed">
+              <div className="bg-background rounded-lg p-3 border border-purple-900/60">
+                <pre className="text-xs font-mono text-purple-300 overflow-auto leading-relaxed bg-black/30 p-2 rounded">
 {`SpendGuard.pay(
-  agentId,
-  "${flow.response402.body.requestId}",
-  provider,
-  ${parseFloat(flow.response402.body.price || "0") * 1_000_000}, // USDC 6 decimals
-  "${flow.response402.body.serviceHash || '0x00'}"
+  agentId: "${flow.label}",
+  requestId: "${r402.requestId}",
+  provider: "${r402.provider || 'Provider'}",
+  amount: ${Math.round(parseFloat(r402.price || "0") * 1_000_000)}, // $${r402.price || "0"} in 6 decimals
+  serviceHash: "${r402.serviceHash || '0x...'}"
 )`}
                 </pre>
               </div>
@@ -150,18 +156,18 @@ export default function Http402Viewer() {
           )}
 
           {/* Step 4: 200 OK */}
-          {flow.response200 && (
+          {r200 && (
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-xs font-mono font-bold text-primary">4</span>
-                <span className="text-xs font-semibold text-foreground">Provider Returns Resource</span>
-                <span className="ml-auto px-1.5 py-0.5 rounded text-xs font-bold bg-green-950 text-primary border border-green-800">
-                  {flow.response200.status}
+                <span className="text-xs font-mono font-bold text-primary bg-green-950/60 border border-green-800/60 px-1.5 py-0.5 rounded">4</span>
+                <span className="text-xs font-semibold text-foreground">Retry with X-Payment-Proof → 200 OK</span>
+                <span className="ml-auto px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-green-950 text-primary border border-green-800">
+                  200 OK
                 </span>
               </div>
-              <div className="bg-background rounded-lg p-3 border border-green-900">
-                <pre className="text-xs font-mono text-green-300 overflow-auto leading-relaxed">
-                  {JSON.stringify(flow.response200.body, null, 2)}
+              <div className="bg-background rounded-lg p-3 border border-green-900/60">
+                <pre className="text-xs font-mono text-green-300 overflow-auto leading-relaxed bg-black/30 p-2 rounded">
+                  {JSON.stringify(r200, null, 2)}
                 </pre>
               </div>
             </div>

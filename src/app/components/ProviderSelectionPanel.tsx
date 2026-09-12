@@ -39,7 +39,7 @@ export default function ProviderSelectionPanel() {
   }, []);
 
   return (
-    <div className="glass-card rounded-xl p-4 flex flex-col gap-3 h-full">
+    <div className="glass-card rounded-xl p-4 flex flex-col gap-3 h-auto">
       <div className="flex items-center gap-2">
         <Cpu size={16} className="text-info" />
         <h3 className="text-sm font-semibold text-foreground">Live Provider Discovery</h3>

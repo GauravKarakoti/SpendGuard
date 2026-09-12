@@ -19,7 +19,8 @@
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
     "clean": "hardhat clean",
     "db:migrate": "drizzle-kit migrate",
-    "db:gen": "drizzle-kit generate"
+    "db:gen": "drizzle-kit generate",
+    "db:seed": "npx tsx src/scripts/seed.ts"
   },
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.16",

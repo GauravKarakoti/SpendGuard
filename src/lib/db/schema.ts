@@ -29,3 +29,17 @@ export const agents = pgTable("agents", {
   privateKey: varchar("private_key", { length: 255 }).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id", { length: 128 }).primaryKey(), // Unique ID for the log
+  ownerAddress: varchar("owner_address", { length: 255 }).notNull(),
+  agentName: varchar("agent_name", { length: 255 }).notNull(),
+  provider: varchar("provider", { length: 255 }),
+  requestId: varchar("request_id", { length: 255 }),
+  taskType: varchar("task_type", { length: 255 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(), // e.g., '402_PAYWALL', 'COMPLETED', 'FAILED'
+  pricePaid: varchar("price_paid", { length: 50 }),
+  txHash: varchar("tx_hash", { length: 255 }),
+  contentHash: varchar("content_hash", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
