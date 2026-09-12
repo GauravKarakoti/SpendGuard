@@ -1,68 +1,44 @@
 'use client';
-
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, ShieldX, BadgeCheck, RefreshCw } from 'lucide-react';
-import { ethers } from 'ethers';
-import SpendGuardABI from '@/contracts/SpendGuard.json';
-import Addresses from '@/contracts/addresses.json';
 
-export default function KpiCards() {
+// FIX: Add ownerAddress prop
+export default function KpiCards({ ownerAddress }: { ownerAddress: string }) {
   const [metrics, setMetrics] = useState({
-    authorizedCount: 0,
-    authorizedAmount: 0,
-    blockedCount: 0,
-    blockedAmount: 0,
-    replayCount: 0,
-    deliveries: 0,
+    authorizedCount: 0, authorizedAmount: 0, blockedCount: 0, blockedAmount: 0, replayCount: 0, deliveries: 0,
   });
 
   useEffect(() => {
     async function loadKpis() {
-      if (typeof window === 'undefined' || !window.ethereum) return;
+      if (!ownerAddress) return; // FIX: Don't fetch until wallet is ready
+
       try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
+        // FIX: Add owner parameter to the URL for multi-tenant isolation
+        const res = await fetch(`/api/logs/audit?owner=${ownerAddress.toLowerCase()}`);
+        const data = await res.json();
 
-        // Fetch logs
-        const [authorized, rejected, deliveries] = await Promise.all([
-          contract.queryFilter(contract.filters.PaymentAuthorized()),
-          contract.queryFilter(contract.filters.PaymentRejected()),
-          contract.queryFilter(contract.filters.DeliveryRecorded())
-        ]);
+        let authCount = 0, authAmount = 0, blockedCount = 0, blockedAmount = 0, replayCount = 0, deliveries = 0;
 
-        let authAmount = 0;
-        authorized.forEach((log: any) => {
-          authAmount += Number(ethers.formatUnits(log.args[3], 6));
-        });
-
-        let blockAmount = 0;
-        let replayCount = 0;
-        rejected.forEach((log: any) => {
-          const reason = log.args[3];
-          if (reason === 'RequestAlreadyProcessed') {
+        data.forEach((log: any) => {
+          const amount = parseFloat(log.pricePaid || "0");
+          if (log.status === 'COMPLETED' || log.status === 'PAID') {
+            authCount++; authAmount += amount;
+            if (log.contentHash && log.contentHash !== 'NoHashProvided') deliveries++;
+          } else if (log.status === 'BUDGET_EXCEEDED') {
+            blockedCount++; blockedAmount += amount;
+          } else if (log.status === 'REPLAY_BLOCKED') {
             replayCount++;
-          } else {
-            blockAmount += Number(ethers.formatUnits(log.args[2], 6));
           }
         });
 
-        setMetrics({
-          authorizedCount: authorized.length,
-          authorizedAmount: authAmount,
-          blockedCount: rejected.length - replayCount,
-          blockedAmount: blockAmount,
-          replayCount: replayCount,
-          deliveries: deliveries.length
-        });
-      } catch (err) {
-        console.error("Failed to load KPIs", err);
-      }
+        setMetrics({ authorizedCount: authCount, authorizedAmount: authAmount, blockedCount, blockedAmount, replayCount, deliveries });
+      } catch (err) { console.error("Failed to load KPIs", err); }
     }
-
+    
     loadKpis();
-    const interval = setInterval(loadKpis, 15000); // refresh every 15s
+    const interval = setInterval(loadKpis, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [ownerAddress]);
 
   const KPI_DATA = [
     {
@@ -77,7 +53,7 @@ export default function KpiCards() {
     },
     {
       key: 'kpi-blocked',
-      label: 'Overspend Blocked',
+      label: '402 Blocked',
       value: metrics.blockedCount.toString(),
       sub: `$${metrics.blockedAmount.toFixed(2)} Prevented`,
       icon: ShieldX,

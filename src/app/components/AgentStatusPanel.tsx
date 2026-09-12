@@ -18,59 +18,52 @@ export default function AgentStatusPanel({ agentName }: { agentName: string }) {
 
   useEffect(() => {
     async function fetchAgentStatus() {
-      const win = window as any;
-      if (typeof window === 'undefined' || !win.ethereum) return;
-      
       try {
-        const provider = new ethers.BrowserProvider(win.ethereum);
-
-        // Guard: Check if contract exists on the current network
-        const code = await provider.getCode(Addresses.SpendGuard);
-        if (code === '0x') {
-          console.warn("SpendGuard contract not found on the current network.");
-          return;
+        // 1. Fetch Budget from the Blockchain
+        let currentLimit = 0;
+        const win = window as any;
+        if (typeof window !== 'undefined' && win.ethereum) {
+          const provider = new ethers.BrowserProvider(win.ethereum);
+          const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
+          const [limit] = await contract.getBudget(agentId);
+          currentLimit = Number(ethers.formatUnits(limit, 6));
         }
 
-        const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
+        // 2. Fetch Activity Counts from the Database
+        const res = await fetch('/api/logs/audit');
+        const data = await res.json();
 
-        const [authorizedLogs, rejectedLogs] = await Promise.all([
-          contract.queryFilter(contract.filters.PaymentAuthorized()),
-          contract.queryFilter(contract.filters.PaymentRejected())
-        ]);
+        let authCount = 0, blockedCount = 0, replayCount = 0;
+        let lastActionTime = '—';
 
-        let replayCount = 0;
-        rejectedLogs.forEach((log: any) => {
-          if (log.args[3] === 'RequestAlreadyProcessed') replayCount++;
+        if (data && data.length > 0) {
+          // Data is already sorted newest first by our API
+          lastActionTime = new Date(data[0].createdAt).toISOString().split('T')[1].slice(0, 8) + ' UTC';
+        }
+
+        data.forEach((log: any) => {
+          if (log.status === 'COMPLETED' || log.status === 'PAID') authCount++;
+          else if (log.status === 'BUDGET_EXCEEDED' || log.status === '402_PAYWALL') blockedCount++;
+          else if (log.status === 'REPLAY_BLOCKED') replayCount++;
         });
 
-        const [limit] = await contract.getBudget(agentId);
-
-        let lastActionTime = '—';
-        const allLogs = [...authorizedLogs, ...rejectedLogs].sort((a, b) => b.blockNumber - a.blockNumber);
-        
-        if (allLogs.length > 0) {
-          const latestBlock = await provider.getBlock(allLogs[0].blockNumber);
-          if (latestBlock) {
-            lastActionTime = new Date(latestBlock.timestamp * 1000).toISOString().split('T')[1].slice(0, 8) + ' UTC';
-          }
-        }
-
         setStatus({
-          budgetLimit: Number(ethers.formatUnits(limit, 6)),
-          authorized: authorizedLogs.length,
-          blocked: rejectedLogs.length - replayCount,
+          budgetLimit: currentLimit,
+          authorized: authCount,
+          blocked: blockedCount,
           replay: replayCount,
           lastAction: lastActionTime
         });
+
       } catch (err) {
         console.error("Failed to fetch agent status", err);
       }
     }
 
     fetchAgentStatus();
-    const interval = setInterval(fetchAgentStatus, 15000);
+    const interval = setInterval(fetchAgentStatus, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [agentId]);
 
   return (
     <div className="glass-card rounded-xl p-4 flex flex-col gap-3">
@@ -84,31 +77,19 @@ export default function AgentStatusPanel({ agentName }: { agentName: string }) {
 
       <div className="space-y-2.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <Bot size={12} />
-            Agent ID
-          </span>
+          <span className="text-muted-foreground flex items-center gap-1.5"><Bot size={12} />Agent ID</span>
           <span className="font-mono text-foreground">{agentName}</span>
         </div>
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <Shield size={12} />
-            Budget Control
-          </span>
+          <span className="text-muted-foreground flex items-center gap-1.5"><Shield size={12} />Budget Control</span>
           <span className="text-primary font-semibold">SpendGuard.sol</span>
         </div>
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <Zap size={12} />
-            Wallet Access
-          </span>
+          <span className="text-muted-foreground flex items-center gap-1.5"><Zap size={12} />Wallet Access</span>
           <span className="text-accent font-semibold">RESTRICTED</span>
         </div>
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground flex items-center gap-1.5">
-            <Clock size={12} />
-            Last Action
-          </span>
+          <span className="text-muted-foreground flex items-center gap-1.5"><Clock size={12} />Last Action</span>
           <span className="font-mono text-foreground">{status.lastAction}</span>
         </div>
       </div>

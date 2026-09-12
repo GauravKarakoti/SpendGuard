@@ -2,11 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { CheckCircle2, ShieldX, RefreshCw, Hash } from 'lucide-react';
-import { ethers } from 'ethers';
-import SpendGuardABI from '@/contracts/SpendGuard.json';
-import Addresses from '@/contracts/addresses.json';
 
-export default function AuditSummaryBar() {
+export default function AuditSummaryBar({ ownerAddress }: { ownerAddress: string }) {
   const [metrics, setMetrics] = useState({
     authorized: 0,
     blocked: 0,
@@ -16,29 +13,29 @@ export default function AuditSummaryBar() {
 
   useEffect(() => {
     async function loadSummary() {
-      if (typeof window === 'undefined' || !window.ethereum) return;
+      if (!ownerAddress) return;
       try {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
+        const res = await fetch(`/api/logs/audit?owner=${ownerAddress.toLowerCase()}`);
+        const data = await res.json();
 
-        const [authorized, rejected, deliveries] = await Promise.all([
-          contract.queryFilter(contract.filters.PaymentAuthorized()),
-          contract.queryFilter(contract.filters.PaymentRejected()),
-          contract.queryFilter(contract.filters.DeliveryRecorded())
-        ]);
+        let authCount = 0, blockedCount = 0, replayCount = 0, hashCount = 0;
 
-        let replayCount = 0;
-        rejected.forEach((log: any) => {
-          if (log.args[3] === 'RequestAlreadyProcessed') {
+        data.forEach((log: any) => {
+          if (log.status === 'COMPLETED' || log.status === 'PAID') {
+            authCount++;
+            if (log.contentHash && log.contentHash !== 'NoHashProvided') hashCount++;
+          } else if (log.status === 'BUDGET_EXCEEDED' || log.status === '402_PAYWALL') {
+            blockedCount++;
+          } else if (log.status === 'REPLAY_BLOCKED') {
             replayCount++;
           }
         });
 
         setMetrics({
-          authorized: authorized.length,
-          blocked: rejected.length - replayCount,
+          authorized: authCount,
+          blocked: blockedCount,
           replay: replayCount,
-          hashes: deliveries.length,
+          hashes: hashCount,
         });
       } catch (err) {
         console.error("Failed to load audit summary", err);
@@ -46,13 +43,13 @@ export default function AuditSummaryBar() {
     }
 
     loadSummary();
-    const interval = setInterval(loadSummary, 15000);
+    const interval = setInterval(loadSummary, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [ownerAddress]);
 
   const SUMMARY = [
     { key: 'sum-authorized', label: 'Authorized', value: metrics.authorized.toString(), icon: CheckCircle2, color: 'text-primary', bg: 'bg-green-950', border: 'border-green-900' },
-    { key: 'sum-blocked', label: 'Budget Blocked', value: metrics.blocked.toString(), icon: ShieldX, color: 'text-accent', bg: 'bg-red-950', border: 'border-red-900' },
+    { key: 'sum-blocked', label: '402 Blocked', value: metrics.blocked.toString(), icon: ShieldX, color: 'text-accent', bg: 'bg-red-950', border: 'border-red-900' },
     { key: 'sum-replay', label: 'Replay Blocked', value: metrics.replay.toString(), icon: RefreshCw, color: 'text-purple-400', bg: 'bg-purple-950', border: 'border-purple-900' },
     { key: 'sum-hashes', label: 'Hashes Verified', value: `${metrics.hashes}/${metrics.authorized}`, icon: Hash, color: 'text-info', bg: 'bg-blue-950', border: 'border-blue-900' },
   ];

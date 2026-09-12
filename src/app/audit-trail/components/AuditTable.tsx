@@ -2,9 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Search, Filter, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
-import { ethers } from 'ethers';
-import SpendGuardABI from '@/contracts/SpendGuard.json';
-import Addresses from '@/contracts/addresses.json';
 
 // FIX 1: Added 'block' to the SortKey type
 type SortKey = 'timestamp' | 'amount' | 'status' | 'provider' | 'block';
@@ -20,6 +17,7 @@ interface AuditRecord {
   timestamp: string;
   block: number;
   rejectReason: string | null;
+  contentHash: string | null;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -29,13 +27,12 @@ function StatusBadge({ status }: { status: string }) {
   return <span className="status-badge-pending">{status}</span>;
 }
 
-export default function AuditTable() {
+export default function AuditTable({ ownerAddress }: { ownerAddress: string }) {
   const [records, setRecords] = useState<AuditRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('block');
+  const [sortKey, setSortKey] = useState<SortKey>('timestamp');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -43,63 +40,36 @@ export default function AuditTable() {
 
   useEffect(() => {
     async function fetchAuditLogs() {
-      const win = window as any;
-      if (typeof window === 'undefined' || !win.ethereum) return;
+      if (!ownerAddress) return; // Wait for wallet address to arrive
+      
+      setLoading(true); // Show loader while fetching
       
       try {
-        const provider = new ethers.BrowserProvider(win.ethereum);
-        const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
+        const res = await fetch(`/api/logs/audit?owner=${ownerAddress.toLowerCase()}`);
+        const data = await res.json();
+        
+        const formatted = data.map((log: any) => ({
+          id: log.id,
+          requestId: log.requestId || 'Unknown',
+          provider: log.provider || 'N/A',
+          amount: parseFloat(log.pricePaid || "0"),
+          paymentTx: log.txHash,
+          status: log.status === 'COMPLETED' || log.status === 'PAID' ? 'AUTHORIZED' : log.status,
+          timestamp: new Date(log.createdAt).toLocaleString(),
+          block: 0, 
+          rejectReason: log.status === 'BUDGET_EXCEEDED' ? 'Budget Limit Reached' : null,
+          contentHash: log.contentHash
+        }));
 
-        const [authorizedLogs, rejectedLogs] = await Promise.all([
-          contract.queryFilter(contract.filters.PaymentAuthorized()),
-          contract.queryFilter(contract.filters.PaymentRejected())
-        ]);
-
-        const formatLogs = await Promise.all([
-          // FIX 2: Explicitly set the return type to Promise<AuditRecord>
-          ...authorizedLogs.map(async (log: any): Promise<AuditRecord> => {
-            const block = await log.getBlock();
-            const date = new Date(block.timestamp * 1000).toISOString().replace('T', ' ').replace('Z', ' UTC');
-            return {
-              id: log.transactionHash,
-              requestId: ethers.decodeBytes32String(log.args[1]).replace(/\0/g, ''),
-              provider: log.args[2],
-              amount: Number(ethers.formatUnits(log.args[3], 6)),
-              paymentTx: log.transactionHash,
-              status: 'AUTHORIZED', // Now strictly typed
-              timestamp: date,
-              block: log.blockNumber,
-              rejectReason: null
-            };
-          }),
-          ...rejectedLogs.map(async (log: any): Promise<AuditRecord> => {
-            const block = await log.getBlock();
-            const date = new Date(block.timestamp * 1000).toISOString().replace('T', ' ').replace('Z', ' UTC');
-            const reason = log.args[3];
-            return {
-              id: log.transactionHash,
-              requestId: ethers.decodeBytes32String(log.args[1]).replace(/\0/g, ''),
-              provider: 'N/A (Reverted)',
-              amount: Number(ethers.formatUnits(log.args[2], 6)),
-              paymentTx: log.transactionHash,
-              status: reason === 'RequestAlreadyProcessed' ? 'REPLAY_BLOCKED' : 'BUDGET_EXCEEDED', // Now strictly typed
-              timestamp: date,
-              block: log.blockNumber,
-              rejectReason: reason
-            };
-          })
-        ]);
-
-        setRecords(formatLogs);
+        setRecords(formatted);
       } catch (err) {
         console.error("Failed to fetch audit logs", err);
       } finally {
         setLoading(false);
       }
     }
-
     fetchAuditLogs();
-  }, []);
+  }, [ownerAddress]);
 
   const filtered = records
     .filter((r) => {
@@ -215,6 +185,11 @@ export default function AuditTable() {
                            <p className="text-xs text-muted-foreground"><strong>Block:</strong> #{record.block}</p>
                            <p className="text-xs text-muted-foreground"><strong>Tx Hash:</strong> <a href={`https://sepolia.etherscan.io/tx/${record.paymentTx}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">{record.paymentTx}</a></p>
                            {record.rejectReason && <p className="text-xs text-accent"><strong>Revert Reason:</strong> {record.rejectReason}</p>}
+                           {record.contentHash && record.contentHash !== 'NoHashProvided' && (
+                              <p className="text-xs text-info mt-1">
+                                <strong>Content Hash:</strong> <span className="font-mono break-all select-all">{record.contentHash}</span>
+                              </p>
+                           )}
                          </div>
                       </td>
                     </tr>

@@ -140,7 +140,7 @@ export default function MainDashboardPage() {
           <div className="col-span-2 md:col-span-4">
             <BudgetHeroCard agentName={activeAgentName} />
           </div>
-          <KpiCards />
+          <KpiCards ownerAddress={walletAddress}/>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     const tx = await adminSigner.sendTransaction({
       to: agentWallet.address,
-      value: ethers.parseEther('0.01'),
+      value: ethers.parseEther('0.001'),
     });
     await tx.wait();
 

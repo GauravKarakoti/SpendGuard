@@ -1,14 +1,23 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { http402Flows } from '@/lib/db/schema';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
-export async function GET() {
+export const dynamic = 'force-dynamic';
+
+export async function GET(request: Request) {
   try {
-    const flows = await db.query.http402Flows.findMany({
-      orderBy: [desc(http402Flows.createdAt)],
-      limit: 10,
-    });
+    const { searchParams } = new URL(request.url);
+    const owner = searchParams.get('owner');
+
+    // Chaining it all at once makes TypeScript perfectly happy
+    const flows = await db
+      .select()
+      .from(http402Flows)
+      .where(owner ? eq(http402Flows.ownerAddress, owner.toLowerCase()) : undefined)
+      .orderBy(desc(http402Flows.createdAt))
+      .limit(10);
+    
     return NextResponse.json(flows);
   } catch (error) {
     console.error("GET Flows Error:", error);
@@ -22,6 +31,7 @@ export async function POST(request: Request) {
 
     const result = await db.insert(http402Flows).values({
       id: body.id,
+      ownerAddress: body.ownerAddress?.toLowerCase(), // <-- Guarded insertion
       label: body.label,
       method: body.method,
       endpoint: body.endpoint,

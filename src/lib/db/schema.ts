@@ -19,6 +19,7 @@ export const http402Flows = pgTable("http402_flows", {
   requestPayload: jsonb("request_payload").notNull(),
   response402: jsonb("response_402"),
   response200: jsonb("response_200"),
+  ownerAddress: varchar("owner_address", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

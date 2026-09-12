@@ -1,0 +1,1 @@
+ALTER TABLE "http402_flows" ADD COLUMN "owner_address" varchar(255);

@@ -7,6 +7,9 @@ import SpendGuardABI from '@/contracts/SpendGuard.json';
 import { randomUUID } from 'crypto';
 
 export async function POST(request: Request) {
+  // 1. Declare dbLogId OUTSIDE the try block so both try and catch can access it
+  let dbLogId: string | null = null;
+
   try {
     const { ownerAddress, prompt } = await request.json();
     const baseUrl = new URL(request.url).origin;
@@ -33,10 +36,27 @@ export async function POST(request: Request) {
       const provider = activeProviders.find(p => p.id === 'prov_trans_primary');
       if (!provider) return NextResponse.json({ error: 'No translation provider configured.' }, { status: 400 });
       
+      // Simulated LLM Parameter Extraction
+      let textToTranslate = prompt.replace(/translate/i, '').trim();
+      let targetLang = 'es'; // default
+      
+      // Extract target language if user said "to [Language]"
+      const langMatch = prompt.match(/to\s+([a-zA-Z]+)/i);
+      if (langMatch) {
+        const langStr = langMatch[1].toLowerCase();
+        const langMap: Record<string, string> = { hindi: 'hi', spanish: 'es', french: 'fr', german: 'de', japanese: 'ja', english: 'en' };
+        targetLang = langMap[langStr] || 'es';
+        
+        // Remove the "to Hindi" part from the text being translated
+        textToTranslate = textToTranslate.replace(new RegExp(`to\\s+${langStr}`, 'i'), '').trim();
+      }
+
       targetApi = '/api/translate';
       taskType = 'Translation';
-      requestBody = { text: prompt, targetLang: 'es', providerId: provider.id };
+      requestBody = { text: textToTranslate, targetLang, providerId: provider.id };
+      
       log(`Intent recognized: Routing to ${provider.name} at $${provider.price}`);
+      log(`Agent extracted params -> Text: "${textToTranslate}", Target: "${targetLang}"`);
       
     } else if (command.includes('compute') || command.includes('matrix') || command.includes('run')) {
       const provider = activeProviders.find(p => p.id === 'prov_comp_primary');
@@ -44,17 +64,21 @@ export async function POST(request: Request) {
 
       targetApi = '/api/compute';
       taskType = 'Compute';
-      requestBody = { jobType: 'matrix_multiply', providerId: provider.id };
+      // Pass the raw prompt so the compute engine can extract the numbers
+      requestBody = { jobType: 'matrix_multiply', payload: prompt, providerId: provider.id };
+      
       log(`Intent recognized: Routing to ${provider.name} at $${provider.price}`);
+      log(`Agent passing mathematical payload to compute engine...`);
       
     } else {
       return NextResponse.json({ error: "Unknown command. Try 'Translate Hello World'." }, { status: 400 });
     }
 
-    // ---> DB ACTION 1 (HTTP FLOW): Log the outgoing request payload
+    // ---> DB ACTION 1 (HTTP FLOW): Log the outgoing request payload WITH ownerAddress
     const flowId = randomUUID();
     await db.insert(http402Flows).values({
       id: flowId,
+      ownerAddress: normalizedOwnerAddress, // <--- ADDED ISOLATION HERE
       label: `Agent Task: ${taskType}`,
       method: 'POST',
       endpoint: targetApi,
@@ -81,6 +105,7 @@ export async function POST(request: Request) {
 
     // DB ACTION (AUDIT LOG): Create the business audit record
     const logId = randomUUID();
+    dbLogId = logId;
     await db.insert(auditLogs).values({
       id: logId,
       ownerAddress: normalizedOwnerAddress,
@@ -125,13 +150,17 @@ export async function POST(request: Request) {
     const finalData = await response.json();
     
     if (response.ok) {
-      // ---> DB ACTION 3 (HTTP FLOW): Record the final 200 OK delivery payload
       await db.update(http402Flows)
         .set({ response200: finalData })
         .where(eq(http402Flows.id, flowId));
 
+      // FIX: Store the exact serviceHash that was anchored on-chain, 
+      // instead of relying on the mock provider's HTTP headers!
       await db.update(auditLogs)
-        .set({ status: 'COMPLETED', contentHash: response.headers.get('x-content-hash') || 'NoHashProvided' })
+        .set({ 
+          status: 'COMPLETED', 
+          contentHash: paymentReq.serviceHash // <--- Changed this line
+        })
         .where(eq(auditLogs.id, logId));
     } else {
       await db.update(auditLogs).set({ status: 'DELIVERY_FAILED' }).where(eq(auditLogs.id, logId));
@@ -145,45 +174,35 @@ export async function POST(request: Request) {
 
   } catch (error: any) {
     console.error("Agent execution failed:", error);
-    
     let errorMessage = error.reason || error.message || 'Execution failed';
+    let finalStatus = 'FAILED'; // Default failure
 
-    // Decode Solidity Custom Errors
     if (error.data) {
       try {
         const spendGuardInterface = new ethers.Interface(SpendGuardABI.abi);
         const parsedError = spendGuardInterface.parseError(error.data);
-        
         if (parsedError) {
           if (parsedError.name === 'BudgetExceeded') {
-            // args[0] is agentId
-            // args[1] is budgetLimit (e.g., 10.00)
-            // args[2] is totalSpent (e.g., 10.00)
-            // args[3] is attemptedAmount (e.g., 3.00)
+            finalStatus = 'BUDGET_EXCEEDED';
             const budgetLimit = Number(ethers.formatUnits(parsedError.args[1], 6));
             const totalSpent = Number(ethers.formatUnits(parsedError.args[2], 6));
             const attempted = Number(ethers.formatUnits(parsedError.args[3], 6));
-            const remaining = budgetLimit - totalSpent;
-            
-            errorMessage = `SpendGuard Reverted: Budget Exceeded. Attempted: $${attempted.toFixed(2)}, Remaining: $${remaining.toFixed(2)}`;
+            errorMessage = `SpendGuard Reverted: Budget Exceeded. Attempted: $${attempted.toFixed(2)}, Remaining: $${(budgetLimit - totalSpent).toFixed(2)}`;
           } else if (parsedError.name === 'RequestAlreadyProcessed') {
-            errorMessage = `SpendGuard Reverted: Replay Attack Prevented (Request ID already paid).`;
-          } else {
-            errorMessage = `SpendGuard Reverted: ${parsedError.name}`;
+            finalStatus = 'REPLAY_BLOCKED';
+            errorMessage = `SpendGuard Reverted: Replay Attack Prevented.`;
           }
         }
-      } catch (parseErr) {
-        if (error.data.includes('1ff44dd9')) {
-          errorMessage = 'SpendGuard Reverted: Budget Exceeded.';
-        }
+      } catch (e) {
+        if (error.data.includes('1ff44dd9')) { finalStatus = 'BUDGET_EXCEEDED'; errorMessage = 'SpendGuard Reverted: Budget Exceeded.'; }
       }
     }
 
-    // Since the API failed, we must pass the error message inside the `logs` array 
-    // so the frontend terminal knows how to display it!
-    return NextResponse.json({ 
-      error: errorMessage,
-      logs: [`[ERROR] ${errorMessage}`] 
-    }, { status: 500 });
+    // ---> DB ACTION: Update the database with the exact security block reason!
+    if (dbLogId) {
+      await db.update(auditLogs).set({ status: finalStatus }).where(eq(auditLogs.id, dbLogId));
+    }
+
+    return NextResponse.json({ error: errorMessage, logs: [`[ERROR] ${errorMessage}`] }, { status: 500 });
   }
 }

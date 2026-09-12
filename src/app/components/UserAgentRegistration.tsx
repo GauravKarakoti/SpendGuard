@@ -16,7 +16,6 @@ interface Props {
 export default function UserAgentRegistration({ userAddress, onRegistered }: Props) {
   const [loading, setLoading] = useState(false);
   const [agentName, setAgentName] = useState('');
-  const [depositAmount, setDepositAmount] = useState('50.00');
   const [budgetLimit, setBudgetLimit] = useState('10.00');
 
   async function getContracts() {
@@ -64,7 +63,7 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
       const { spendGuard, mockUsdc } = await getContracts();
       const agentIdBytes = ethers.encodeBytes32String(agentName);
       const limitUnits = ethers.parseUnits(budgetLimit, 6);
-      const depositUnits = ethers.parseUnits(depositAmount, 6);
+      const depositUnits = ethers.parseUnits(budgetLimit, 6);
 
       toast.info('Registering agent on-chain...');
       const txReg = await spendGuard.registerAgent(agentIdBytes, agentAddress);
@@ -126,19 +125,6 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
             onChange={(e) => setBudgetLimit(e.target.value)}
             className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground outline-none"
             placeholder="10.00"
-          />
-        </div>
-
-        <div>
-          <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-            Fund Contract Vault (MockUSDC Deposit)
-          </label>
-          <input
-            type="text"
-            value={depositAmount}
-            onChange={(e) => setDepositAmount(e.target.value)}
-            className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground outline-none"
-            placeholder="50.00"
           />
         </div>
 
