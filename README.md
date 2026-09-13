@@ -1,90 +1,81 @@
-# Next.js
+# 🛡️ SpendGuard
+> A programmable financial firewall and spending-control layer for autonomous AI agents in the 0G ecosystem.
 
-A modern Next.js 15 application built with TypeScript and Tailwind CSS.
+SpendGuard is an open-source security primitive designed to bridge the gap between autonomous AI operations and financial security. It provides a robust policy layer over 0G's existing 402/payment infrastructure, ensuring that autonomous agents can freely interact with AI providers, without ever having unrestricted access to a user's wallet.
 
-## 🚀 Features
+Even if an agent goes rogue, gets trapped in a retry loop, or is manipulated via prompt injection, its maximum financial impact is strictly contained to the budget you explicitly authorize.
 
-- **Next.js 15** - Latest version with improved performance and features
-- **React 19** - Latest React version with enhanced capabilities
-- **Tailwind CSS** - Utility-first CSS framework for rapid UI development
+## 🛑 The Problem
+As AI agents become more autonomous, they need the ability to pay for inference, data, and compute via 0G's provider ecosystem. However, giving an AI agent direct, unrestricted access to a wallet introduces catastrophic risks:
+  - **Prompt Injection**: Malicious actors could manipulate your agent into draining funds by spamming expensive provider endpoints.
+  - **Infinite Loops & Retries**: A bug in the agent's logic or a network error could cause runaway API calls, racking up massive unintended charges.
+  - **Lack of Granularity**: Standard wallets do not natively support "per-request" or "time-boxed" allowances for non-human actors.
 
-## 🛠️ Installation
+## 💡 The Solution
+SpendGuard does not replace 0G's 402 payment infrastructure; it wraps it in a programmable security layer. Backed by a smart contract deployed natively on 0G, SpendGuard allows developers and users to define hard, enforceable financial policies before the agent makes a single request.
 
-1. Install dependencies:
-  ```bash
-  npm install
-  # or
-  yarn install
-  ```
+## ✨ Core Features
+- **Programmable Budgets**: Define strict global spending limits and individual agent-specific allowances.
+- **Granular Constraints**: Enforce maximum per-request limits to prevent sudden, high-cost transactions.
+- **Time-Based Limits**: Restrict spending velocity (e.g., "Max $10 per day").
+- **Provider Restricting (Whitelisting)**: Ensure your agent can only spend funds with trusted, explicitly approved 0G ecosystem providers.
+- **Replay & Duplicate Protection**: Built-in idempotency and duplicate-payment detection ensure that network retries or malicious transaction replays cannot cause double charges.
 
-2. Start the development server:
-  ```bash
-  npm run dev
-  # or
-  yarn dev
-  ```
-3. Open [http://localhost:4028](http://localhost:4028) with your browser to see the result.
+## 🏗️ Architecture & Tech Stack
+SpendGuard is built as a full-stack decentralized application, structured to be easily adopted as an ecosystem primitive by 0G builders.
+  - **Smart Contracts**: Built with Solidity and Hardhat (`contracts/SpendGuard.sol`, `hardhat.config.ts`).
+  - **Frontend/Dashboard**: Built with Next.js, React, and Tailwind CSS for the Agent Console UI (next.config.mjs, `tailwind.config.js`, `src/app/agent-console/`).
+  - **Database & Indexing**: Powered by Drizzle ORM to index agent logs and audit trails (`drizzle.config.ts`, `src/lib/db/`).  
 
-## 📁 Project Structure
+### Repository Structure
+- `/contracts` - Contains the core `SpendGuard.sol` policy enforcer and `MockUSDC.sol` for local testing.
+- `/src/app/agent-console` - The primary UI for users to monitor agent spending, view HTTP 402 flows, and adjust budgets.
+- `/src/app/audit-trail` - Verification interfaces including `DeliveryHashVerifier` and transaction audit tables.
+- `/src/app/api` - Backend routes handling agent registration, 402 payment verification, and log streaming.
 
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (v18+)
+- pnpm or npm
+- A 0G-compatible Web3 Wallet
+
+### Installation
+1. **Clone the repository:**
+```bash
+git clone https://github.com/your-org/SpendGuard.git
+cd SpendGuard
 ```
-nextjs/
-├── public/             # Static assets
-├── src/
-│   ├── app/            # App router components
-│   │   ├── layout.tsx  # Root layout component
-│   │   └── page.tsx    # Main page component
-│   ├── components/     # Reusable UI components
-│   ├── styles/         # Global styles and Tailwind configuration
-├── next.config.mjs     # Next.js configuration
-├── package.json        # Project dependencies and scripts
-├── postcss.config.js   # PostCSS configuration
-└── tailwind.config.js  # Tailwind CSS configuration
 
+2. **Install dependencies:**
+```bash
+npm install
 ```
 
-## 🧩 Page Editing
+3. **Set up environment variables:**
 
-You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
+Copy the example environment file and fill in your network RPCs and database credentials.
+```bash
+cp .env.example .env
+```
 
-## 🎨 Styling
+4. **Compile Smart Contracts:**
+```bash
+npx hardhat compile
+```
 
-This project uses Tailwind CSS for styling with the following features:
-- Utility-first approach for rapid development
-- Custom theme configuration
-- Responsive design utilities
-- PostCSS and Autoprefixer integration
+5. **Run the Database Migrations (Drizzle):**
+```bash
+npm run db:push
+```
 
-## 📦 Available Scripts
+6. **Start the Development Server:**
+```bash
+npm run dev
+```
+Navigate to `http://localhost:3000` to view the Agent Console.
 
-- `npm run dev` - Start development server on port 4028
-- `npm run build` - Build the application for production
-- `npm run start` - Start the development server
-- `npm run serve` - Start the production server
-- `npm run lint` - Run ESLint to check code quality
-- `npm run lint:fix` - Fix ESLint issues automatically
-- `npm run format` - Format code with Prettier
+## 🗺️ Vision: A 0G Ecosystem Primitive
+SpendGuard is built on the thesis that **trustless AI requires trustless budget enforcement**.
 
-## 📱 Deployment
-
-Build the application for production:
-
-  ```bash
-  npm run build
-  ```
-
-## 📚 Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial
-
-You can check out the [Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## 🙏 Acknowledgments
-
-- Powered by Next.js and React
-- Styled with Tailwind CSS
-
-Built with ❤️
+We are validating this architecture with 0G builders to establish it as an open-source standard. By integrating SpendGuard, developers can offer their users peace of mind, knowing that autonomous agents are operating within a mathematically enforced financial sandbox.
