@@ -45,7 +45,7 @@ export default function KpiCards({ ownerAddress }: { ownerAddress: string }) {
       key: 'kpi-authorized',
       label: 'Payments Authorized',
       value: metrics.authorizedCount.toString(),
-      sub: `$${metrics.authorizedAmount.toFixed(2)} USDC Spent`,
+      sub: `$${metrics.authorizedAmount.toFixed(2)} 0G Spent`,
       icon: CheckCircle2,
       color: 'text-primary',
       bg: 'bg-green-950',

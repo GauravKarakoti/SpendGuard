@@ -112,7 +112,7 @@ export default function ContractResponsePanel() {
               <div className="space-y-0.5 text-muted-foreground font-mono">
                 <div>requestId: <span className="text-foreground">{evt.requestId}</span></div>
                 {evt.status === 'success' && <div>provider: <span className="text-foreground truncate">{evt.provider.slice(0,16)}...</span></div>}
-                <div>amount: <span className="text-foreground">${Number(evt.amount).toFixed(2)} USDC</span></div>
+                <div>amount: <span className="text-foreground">${Number(evt.amount).toFixed(2)} 0G</span></div>
                 {evt.status === 'error' && evt.reason && (
                   <div>reason: <span className="text-accent">{evt.reason}</span></div>
                 )}

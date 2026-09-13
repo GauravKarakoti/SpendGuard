@@ -130,7 +130,7 @@ export default function MainDashboardPage() {
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-green" />
-            <span className="font-mono">Sepolia Testnet</span>
+            <span className="font-mono">0G Testnet</span>
           </div>
         </div>
 

@@ -121,7 +121,7 @@ export default function Http402Viewer() {
                     <div>Content-Type: application/json</div>
                     <div>X-Payment-Required: true</div>
                     {r402.provider && <div>X-Provider: {r402.provider}</div>}
-                    {r402.price && <div>X-Price-USDC: ${r402.price}</div>}
+                    {r402.price && <div>X-Price-0G: ${r402.price}</div>}
                   </div>
                   <pre className="text-xs font-mono text-amber-300 overflow-auto leading-relaxed bg-black/30 p-2 rounded">
                     {JSON.stringify(r402, null, 2)}
@@ -131,24 +131,28 @@ export default function Http402Viewer() {
             </div>
           )}
 
-          {/* Step 3: Payment */}
+          {/* Step 3: Payment (Updated for EIP-712) */}
           {r402?.requestId && (
             <div>
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-xs font-mono font-bold text-purple-400 bg-purple-950/60 border border-purple-800/60 px-1.5 py-0.5 rounded">3</span>
-                <span className="text-xs font-semibold text-foreground">Agent Authorizes SpendGuard.pay()</span>
+                <span className="text-xs font-semibold text-foreground">Agent Signs EIP-712 Payment</span>
                 <span className="ml-auto text-[11px] font-mono text-purple-400 bg-purple-950/40 px-2 py-0.5 rounded border border-purple-900">
-                  On-Chain
+                  Off-Chain Signature
                 </span>
               </div>
               <div className="bg-background rounded-lg p-3 border border-purple-900/60">
                 <pre className="text-xs font-mono text-purple-300 overflow-auto leading-relaxed bg-black/30 p-2 rounded">
-{`SpendGuard.pay(
-  agentId: "${flow.label}",
-  requestId: "${r402.requestId}",
-  provider: "${r402.provider || 'Provider'}",
-  amount: ${Math.round(parseFloat(r402.price || "0") * 1_000_000)}, // $${r402.price || "0"} in 6 decimals
-  serviceHash: "${r402.serviceHash || '0x...'}"
+{`// Off-chain typed data generation (Zero Gas)
+agentSigner.signTypedData(
+  domain: { name: "SpendGuard", version: "1" },
+  message: {
+    agentId: "${flow.label}",
+    requestId: "${r402.requestId}",
+    provider: "${r402.provider || 'Provider'}",
+    amount: ${r402.price ? r402.price + 'e18' : '0'}, // ${r402.price || "0"} 0G (18 decimals)
+    serviceHash: "${r402.serviceHash || '0x...'}"
+  }
 )`}
                 </pre>
               </div>

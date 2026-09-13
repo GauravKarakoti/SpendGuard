@@ -122,7 +122,7 @@ npx hardhat run scripts/deploy.ts --network localhost
 
 Create `.env.hardhat`:
 ```
-SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
+ZEROG_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
 DEPLOYER_PRIVATE_KEY=0xYOUR_PRIVATE_KEY
 ETHERSCAN_API_KEY=YOUR_ETHERSCAN_KEY
 ```

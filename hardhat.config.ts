@@ -4,14 +4,17 @@ import * as dotenv from "dotenv";
 
 dotenv.config({ path: ".env" });
 
-const SEPOLIA_RPC_URL  = process.env.SEPOLIA_RPC_URL  || "";
-const PRIVATE_KEY      = process.env.DEPLOYER_PRIVATE_KEY || "";
-const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "";
+// Fallback to the standard 0G Testnet RPC if not provided in .env
+const ZEROG_RPC_URL  = process.env.ZEROG_RPC_URL  || "https://evmrpc-testnet.0g.ai";
+const PRIVATE_KEY    = process.env.DEPLOYER_PRIVATE_KEY || "";
+// Blockscout doesn't always require a real API key, but Hardhat requires the field to be populated
+const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY || "0g-testnet-placeholder-key";
 
 const config: HardhatUserConfig = {
   solidity: {
-    version: "0.8.20",
+    version: "0.8.24",
     settings: {
+      evmVersion: "cancun",
       optimizer: {
         enabled: true,
         runs: 200,
@@ -19,18 +22,30 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
-    ...(SEPOLIA_RPC_URL && PRIVATE_KEY
+    ...(PRIVATE_KEY
       ? {
-          sepolia: {
-            url: SEPOLIA_RPC_URL,
+          zerog: {
+            url: ZEROG_RPC_URL,
             accounts: [PRIVATE_KEY],
-            chainId: 11155111,
+            chainId: 16602, // 0G Testnet Chain ID
           },
         }
       : {}),
   },
   etherscan: {
-    apiKey: ETHERSCAN_API_KEY,
+    apiKey: {
+      zerog: ETHERSCAN_API_KEY,
+    },
+    customChains: [
+      {
+        network: "zerog",
+        chainId: 16600,
+        urls: {
+          apiURL: "https://chainscan-galileo.0g.ai/api", // 0G Testnet block explorer API
+          browserURL: "https://chainscan-galileo.0g.ai", // 0G Testnet block explorer GUI
+        },
+      },
+    ],
   },
   paths: {
     sources:   "./contracts",

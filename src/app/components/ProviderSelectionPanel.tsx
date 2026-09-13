@@ -44,7 +44,7 @@ export default function ProviderSelectionPanel() {
         <Cpu size={16} className="text-info" />
         <h3 className="text-sm font-semibold text-foreground">Live Provider Discovery</h3>
       </div>
-      <p className="text-xs text-muted-foreground">Agent decision — all payments still enforced by contract</p>
+      <p className="text-xs text-muted-foreground">Agent decision — all payments signed off-chain</p>
 
       <div className="space-y-2 flex-1">
         {loading && providers.length === 0 ? (
@@ -76,7 +76,7 @@ export default function ProviderSelectionPanel() {
                     </span>
                     {p.selected && <CheckCircle2 size={11} className="text-primary" />}
                   </div>
-                  <span className="font-mono font-bold text-foreground tabular-nums">${priceNum.toFixed(2)}</span>
+                  <span className="font-mono font-bold text-foreground tabular-nums">{priceNum.toFixed(4)} 0G</span>
                 </div>
                 <div className="flex items-center gap-3 text-muted-foreground">
                   <span>Quality: {(qualityNum * 100).toFixed(0)}%</span>

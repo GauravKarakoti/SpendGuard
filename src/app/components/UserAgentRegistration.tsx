@@ -5,7 +5,6 @@ import { Bot, CheckCircle2, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ethers } from 'ethers';
 import SpendGuardABI from '@/contracts/SpendGuard.json';
-import MockUSDCABI from '@/contracts/MockUSDC.json';
 import Addresses from '@/contracts/addresses.json';
 
 interface Props {
@@ -16,18 +15,15 @@ interface Props {
 export default function UserAgentRegistration({ userAddress, onRegistered }: Props) {
   const [loading, setLoading] = useState(false);
   const [agentName, setAgentName] = useState('');
-  const [budgetLimit, setBudgetLimit] = useState('10.00');
+  const [budgetLimit, setBudgetLimit] = useState('0.001');
 
-  async function getContracts() {
+  async function getContract() {
     const win = window as any;
     if (!win.ethereum) throw new Error("Wallet not connected");
     const provider = new ethers.BrowserProvider(win.ethereum);
     const signer = await provider.getSigner();
     
-    return {
-      spendGuard: new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, signer),
-      mockUsdc: new ethers.Contract(Addresses.MockUSDC, MockUSDCABI.abi, signer),
-    };
+    return new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, signer);
   }
 
   const handleFullSetup = async (e: React.FormEvent) => {
@@ -36,10 +32,15 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
       toast.error('Please enter an agent name');
       return;
     }
+    if (!budgetLimit || isNaN(Number(budgetLimit)) || Number(budgetLimit) <= 0) {
+      toast.error('Please enter a valid spending limit greater than 0');
+      return;
+    }
 
     setLoading(true);
     try {
-      toast.info('Generating autonomous agent keypair & sponsoring gas...');
+      // 1. Backend generates agent keypair and saves to DB
+      toast.info('Generating autonomous agent keypair...');
       const res = await fetch('/api/agent/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -58,28 +59,20 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
       if (!res.ok) throw new Error(data.error || 'Failed to register agent backend');
 
       const agentAddress = data.agentAddress;
-      toast.success(`Agent wallet created: ${agentAddress.slice(0, 6)}... (Gas sponsored!)`);
+      toast.success(`Agent wallet created: ${agentAddress.slice(0, 6)}...`);
 
-      const { spendGuard, mockUsdc } = await getContracts();
+      // 2. Single On-Chain Batch Transaction via setupAgent()
+      const spendGuard = await getContract();
       const agentIdBytes = ethers.encodeBytes32String(agentName);
-      const limitUnits = ethers.parseUnits(budgetLimit, 6);
-      const depositUnits = ethers.parseUnits(budgetLimit, 6);
+      const budgetUnits = ethers.parseEther(budgetLimit);
 
-      toast.info('Registering agent on-chain...');
-      const txReg = await spendGuard.registerAgent(agentIdBytes, agentAddress);
-      await txReg.wait();
-
-      toast.info('Setting on-chain spending limit...');
-      const txBudget = await spendGuard.createBudget(agentIdBytes, limitUnits);
-      await txBudget.wait();
-
-      toast.info('Approving MockUSDC deposit...');
-      const txApprove = await mockUsdc.approve(Addresses.SpendGuard, depositUnits);
-      await txApprove.wait();
-
-      toast.info('Depositing MockUSDC into contract vault...');
-      const txDeposit = await spendGuard.deposit(depositUnits);
-      await txDeposit.wait();
+      toast.info(`Please confirm the deposit of ${budgetLimit} 0G in your wallet...`);
+      
+      // Batch registers agent, creates budget, and deposits native funds at once
+      const tx = await spendGuard.setupAgent(agentIdBytes, agentAddress, budgetUnits, {
+        value: budgetUnits,
+      });
+      await tx.wait();
 
       toast.success(`Setup complete! Agent "${agentName}" is active.`);
       onRegistered();
@@ -98,7 +91,7 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
         <h3 className="text-base font-semibold text-foreground">Autonomous Agent Provisioning</h3>
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">
-        Configure your agent for wallet <span className="font-mono text-foreground">{userAddress.slice(0, 6)}...{userAddress.slice(-4)}</span>. We will automatically generate its execution wallet, sponsor gas, and lock in your budget.
+        Configure your agent for wallet <span className="font-mono text-foreground">{userAddress.slice(0, 6)}...{userAddress.slice(-4)}</span>. We will generate its gasless execution key, set up EIP-712 permissions, and fund your 0G budget in a single transaction.
       </p>
 
       <form onSubmit={handleFullSetup} className="space-y-4 pt-2 border-t border-border">
@@ -117,14 +110,14 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
 
         <div>
           <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider block mb-1">
-            Agent Spending Limit (USDC)
+            Agent Spending Limit (0G)
           </label>
           <input
             type="text"
             value={budgetLimit}
             onChange={(e) => setBudgetLimit(e.target.value)}
             className="w-full bg-muted border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground outline-none"
-            placeholder="10.00"
+            placeholder="0.001"
           />
         </div>
 
@@ -132,7 +125,7 @@ export default function UserAgentRegistration({ userAddress, onRegistered }: Pro
           {loading ? (
             <>
               <Loader2 size={16} className="animate-spin" />
-              Provisioning & Sponsoring Gas...
+              Provisioning Agent (1 Signature)...
             </>
           ) : (
             <>

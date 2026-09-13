@@ -67,7 +67,7 @@ export default function Sidebar({ collapsed, onToggle, agentName }: SidebarProps
             <div className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse-green" />
             <p className="hash-text text-green-400 truncate">{Addresses.SpendGuard.slice(0, 6)}...{Addresses.SpendGuard.slice(-4)}</p>
             <a
-              href={`https://sepolia.etherscan.io/address/${Addresses.SpendGuard}`}
+              href={`https://chainscan-galileo.0g.ai/address/${Addresses.SpendGuard}`}
               className="pointer"
               target="_blank"
               rel="noopener noreferrer"
@@ -75,7 +75,7 @@ export default function Sidebar({ collapsed, onToggle, agentName }: SidebarProps
               <ExternalLink size={10} className="text-muted-foreground flex-shrink-0" />
             </a>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">Sepolia Testnet</p>
+          <p className="text-xs text-muted-foreground mt-0.5">0G Testnet</p>
         </div>
       )}
 

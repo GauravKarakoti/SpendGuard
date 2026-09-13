@@ -16,11 +16,10 @@
     "test:gas": "REPORT_GAS=true hardhat test",
     "coverage": "hardhat coverage",
     "node": "hardhat node",
-    "deploy:sepolia": "hardhat run scripts/deploy.ts --network sepolia",
+    "deploy:zerog": "hardhat run scripts/deploy.ts --network zerog",
     "clean": "hardhat clean",
     "db:migrate": "drizzle-kit migrate",
-    "db:gen": "drizzle-kit generate",
-    "db:seed": "npx tsx src/scripts/seed.ts"
+    "db:gen": "drizzle-kit generate"
   },
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.16",

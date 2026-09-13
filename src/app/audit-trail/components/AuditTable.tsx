@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronUp, Search, Filter, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 
-// FIX 1: Added 'block' to the SortKey type
 type SortKey = 'timestamp' | 'amount' | 'status' | 'provider' | 'block';
 type SortDir = 'asc' | 'desc';
 
@@ -40,9 +39,9 @@ export default function AuditTable({ ownerAddress }: { ownerAddress: string }) {
 
   useEffect(() => {
     async function fetchAuditLogs() {
-      if (!ownerAddress) return; // Wait for wallet address to arrive
+      if (!ownerAddress) return; 
       
-      setLoading(true); // Show loader while fetching
+      setLoading(true); 
       
       try {
         const res = await fetch(`/api/logs/audit?owner=${ownerAddress.toLowerCase()}`);
@@ -54,7 +53,7 @@ export default function AuditTable({ ownerAddress }: { ownerAddress: string }) {
           provider: log.provider || 'N/A',
           amount: parseFloat(log.pricePaid || "0"),
           paymentTx: log.txHash,
-          status: log.status === 'COMPLETED' || log.status === 'PAID' ? 'AUTHORIZED' : log.status,
+          status: log.status === 'COMPLETED' || log.status === 'SIGNED_OFFCHAIN' || log.status === 'PAID' ? 'AUTHORIZED' : log.status,
           timestamp: new Date(log.createdAt).toLocaleString(),
           block: 0, 
           rejectReason: log.status === 'BUDGET_EXCEEDED' ? 'Budget Limit Reached' : null,
@@ -174,7 +173,7 @@ export default function AuditTable({ ownerAddress }: { ownerAddress: string }) {
                     </td>
                     <td className="px-4 py-3"><span className="font-mono text-foreground">{record.requestId}</span></td>
                     <td className="px-4 py-3"><span className="font-medium text-foreground whitespace-nowrap truncate block max-w-36">{record.provider}</span></td>
-                    <td className="px-4 py-3"><span className={`font-mono font-semibold tabular-nums ${record.status !== 'AUTHORIZED' ? 'text-accent' : 'text-foreground'}`}>${record.amount.toFixed(2)}</span></td>
+                    <td className="px-4 py-3"><span className={`font-mono font-semibold tabular-nums ${record.status !== 'AUTHORIZED' ? 'text-accent' : 'text-foreground'}`}>{record.amount.toFixed(4)} 0G</span></td>
                     <td className="px-4 py-3"><StatusBadge status={record.status} /></td>
                     <td className="px-4 py-3"><span className="font-mono text-muted-foreground whitespace-nowrap">{record.timestamp}</span></td>
                   </tr>
@@ -182,8 +181,9 @@ export default function AuditTable({ ownerAddress }: { ownerAddress: string }) {
                     <tr key={`${record.id}-expanded`}>
                       <td colSpan={6} className="px-6 pb-4 pt-2 bg-muted bg-opacity-30">
                          <div className="space-y-2">
-                           <p className="text-xs text-muted-foreground"><strong>Block:</strong> #{record.block}</p>
-                           <p className="text-xs text-muted-foreground"><strong>Tx Hash:</strong> <a href={`https://sepolia.etherscan.io/tx/${record.paymentTx}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">{record.paymentTx}</a></p>
+                           {record.paymentTx && (
+                             <p className="text-xs text-muted-foreground"><strong>EIP-712 Signature (Sent to Provider):</strong> <span className="font-mono text-primary break-all select-all">{record.paymentTx}</span></p>
+                           )}
                            {record.rejectReason && <p className="text-xs text-accent"><strong>Revert Reason:</strong> {record.rejectReason}</p>}
                            {record.contentHash && record.contentHash !== 'NoHashProvided' && (
                               <p className="text-xs text-info mt-1">

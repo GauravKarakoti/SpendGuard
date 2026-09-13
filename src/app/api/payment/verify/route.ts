@@ -13,7 +13,7 @@ export interface PaymentProof {
   agentId: string; // Can be agent name string or bytes32 hex
   requestId: string;
   provider: string;
-  amount: number; // USDC in micro-units (6 decimals)
+  amount: number; // 0G in micro-units (6 decimals)
   serviceHash: string;
   txHash?: string;
 }
@@ -51,8 +51,8 @@ function randomTxHash(): string {
 /**
  * Dynamically register or update a budget in the local runtime store.
  */
-export function registerOrUpdateBudget(agentName: string, limitUSDC: number) {
-  const limitUnits = limitUSDC * 1_000_000;
+export function registerOrUpdateBudget(agentName: string, limit0G: number) {
+  const limitUnits = limit0G * 1_000_000;
   if (!dynamicBudgets[agentName]) {
     dynamicBudgets[agentName] = { limit: limitUnits, spent: 0, active: true };
   } else {
@@ -208,12 +208,12 @@ export function simulateContractPay(proof: PaymentProof): PaymentVerificationRes
   };
 }
 
-export function resetBudgetState(agentId: string, limitUSDC: number) {
+export function resetBudgetState(agentId: string, limit0G: number) {
   const agentKey = agentId.startsWith('0x') 
     ? ethers.decodeBytes32String(agentId).replace(/\0/g, '') 
     : agentId;
 
-  dynamicBudgets[agentKey] = { limit: limitUSDC * 1_000_000, spent: 0, active: true };
+  dynamicBudgets[agentKey] = { limit: limit0G * 1_000_000, spent: 0, active: true };
   processedRequests.clear();
 }
 

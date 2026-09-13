@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const agentWallet = ethers.Wallet.createRandom();
 
     // Sponsor gas (Fund agent execution wallet with ETH)
-    const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+    const provider = new ethers.JsonRpcProvider(process.env.ZEROG_RPC_URL);
     const adminSigner = new ethers.Wallet(
       process.env.DEPLOYER_PRIVATE_KEY!,
       provider

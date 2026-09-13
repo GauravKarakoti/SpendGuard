@@ -9,6 +9,14 @@ import Addresses from '@/contracts/addresses.json';
 
 const BudgetRadialChart = dynamic(() => import('./BudgetRadialChart'), { ssr: false });
 
+// Dynamic formatter: shows 2 decimals for round numbers, up to 6 for micro-transactions
+const format0G = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(val);
+};
+
 export default function BudgetHeroCard({ agentName }: { agentName: string }) {
   const AGENT_ID = ethers.encodeBytes32String(agentName);
   const [budgetData, setBudgetData] = useState({ limit: 0, spent: 0, remaining: 0 });
@@ -22,11 +30,9 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
 
       try {
         const provider = new ethers.BrowserProvider(win.ethereum);
-        
-        // 1. Check if the contract exists at this address on the current network
         const code = await provider.getCode(Addresses.SpendGuard);
         if (code === '0x') {
-          console.warn("No contract found at SpendGuard address on the current network. Check your wallet connection.");
+          console.warn("No contract found at SpendGuard address. Check your wallet connection.");
           setLoading(false);
           return;
         }
@@ -35,9 +41,8 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
 
         const [limit, spent, active] = await contract.getBudget(AGENT_ID);
         
-        // Format from 6 decimal USDC
-        const formattedLimit = Number(ethers.formatUnits(limit, 6));
-        const formattedSpent = Number(ethers.formatUnits(spent, 6));
+        const formattedLimit = Number(ethers.formatEther(limit));
+        const formattedSpent = Number(ethers.formatEther(spent));
 
         setBudgetData({
           limit: formattedLimit,
@@ -55,10 +60,9 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
     }
 
     fetchBudget();
-    
     const interval = setInterval(fetchBudget, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [AGENT_ID]);
 
   const utilizationPct = budgetData.limit > 0 ? Math.round((budgetData.spent / budgetData.limit) * 100) : 0;
   const isNearLimit = utilizationPct >= 80;
@@ -96,21 +100,21 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
             <div className="flex flex-col gap-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Budget</p>
               <p className="text-2xl font-bold text-foreground tabular-nums">
-                ${budgetData.limit.toFixed(2)}
+                {format0G(budgetData.limit)}
               </p>
-              <p className="text-xs text-muted-foreground">USDC limit</p>
+              <p className="text-xs text-muted-foreground">0G limit</p>
             </div>
             <div className="flex flex-col gap-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Spent</p>
               <p className="text-2xl font-bold text-foreground tabular-nums">
-                ${budgetData.spent.toFixed(2)}
+                {format0G(budgetData.spent)}
               </p>
               <p className="text-xs text-muted-foreground">authorized</p>
             </div>
             <div className="flex flex-col gap-1">
               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Remaining</p>
               <p className={`text-2xl font-bold tabular-nums ${isNearLimit ? 'text-warning' : 'text-primary'}`}>
-                ${budgetData.remaining.toFixed(2)}
+                {format0G(budgetData.remaining)}
               </p>
               <p className="text-xs text-muted-foreground">available</p>
             </div>
@@ -119,7 +123,7 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
           <div>
             <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
               <span>{utilizationPct}% utilized</span>
-              <span className="font-mono">${budgetData.spent} / ${budgetData.limit}</span>
+              <span className="font-mono">{format0G(budgetData.spent)} / {format0G(budgetData.limit)} 0G</span>
             </div>
             <div className="w-full h-2.5 rounded-full bg-secondary overflow-hidden">
               <div
@@ -133,7 +137,7 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <TrendingUp size={12} className="text-primary" />
-            <span>Last tx block:</span>
+            <span>Latest 0G Block:</span>
             <span className="font-mono text-foreground">#{lastBlock.toLocaleString()}</span>
           </div>
         </div>
@@ -143,7 +147,7 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 rounded-full bg-primary" />
           <p className="text-xs text-muted-foreground">
-            Enforcement: <span className="text-primary font-semibold">SpendGuard.sol · pay()</span>
+            Enforcement: <span className="text-primary font-semibold">SpendGuard.sol · claimPayment()</span>
           </p>
         </div>
         <p className="text-xs text-muted-foreground font-mono">

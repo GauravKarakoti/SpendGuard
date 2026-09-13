@@ -7,7 +7,6 @@ import SpendGuardABI from '@/contracts/SpendGuard.json';
 import { randomUUID } from 'crypto';
 
 export async function POST(request: Request) {
-  // 1. Declare dbLogId OUTSIDE the try block so both try and catch can access it
   let dbLogId: string | null = null;
 
   try {
@@ -26,7 +25,6 @@ export async function POST(request: Request) {
     let requestBody = {};
     let taskType = '';
 
-    // Fetch the currently selected providers from the DB
     const activeProviders = await db
       .select()
       .from(providers)
@@ -36,18 +34,14 @@ export async function POST(request: Request) {
       const provider = activeProviders.find(p => p.id === 'prov_trans_primary');
       if (!provider) return NextResponse.json({ error: 'No translation provider configured.' }, { status: 400 });
       
-      // Simulated LLM Parameter Extraction
       let textToTranslate = prompt.replace(/translate/i, '').trim();
-      let targetLang = 'es'; // default
+      let targetLang = 'es'; 
       
-      // Extract target language if user said "to [Language]"
       const langMatch = prompt.match(/to\s+([a-zA-Z]+)/i);
       if (langMatch) {
         const langStr = langMatch[1].toLowerCase();
         const langMap: Record<string, string> = { hindi: 'hi', spanish: 'es', french: 'fr', german: 'de', japanese: 'ja', english: 'en' };
         targetLang = langMap[langStr] || 'es';
-        
-        // Remove the "to Hindi" part from the text being translated
         textToTranslate = textToTranslate.replace(new RegExp(`to\\s+${langStr}`, 'i'), '').trim();
       }
 
@@ -55,8 +49,7 @@ export async function POST(request: Request) {
       taskType = 'Translation';
       requestBody = { text: textToTranslate, targetLang, providerId: provider.id };
       
-      log(`Intent recognized: Routing to ${provider.name} at $${provider.price}`);
-      log(`Agent extracted params -> Text: "${textToTranslate}", Target: "${targetLang}"`);
+      log(`Intent recognized: Routing to ${provider.name} at ${provider.price} 0G`);
       
     } else if (command.includes('compute') || command.includes('matrix') || command.includes('run')) {
       const provider = activeProviders.find(p => p.id === 'prov_comp_primary');
@@ -64,28 +57,24 @@ export async function POST(request: Request) {
 
       targetApi = '/api/compute';
       taskType = 'Compute';
-      // Pass the raw prompt so the compute engine can extract the numbers
       requestBody = { jobType: 'matrix_multiply', payload: prompt, providerId: provider.id };
       
-      log(`Intent recognized: Routing to ${provider.name} at $${provider.price}`);
-      log(`Agent passing mathematical payload to compute engine...`);
+      log(`Intent recognized: Routing to ${provider.name} at ${provider.price} 0G`);
       
     } else {
       return NextResponse.json({ error: "Unknown command. Try 'Translate Hello World'." }, { status: 400 });
     }
 
-    // ---> DB ACTION 1 (HTTP FLOW): Log the outgoing request payload WITH ownerAddress
     const flowId = randomUUID();
     await db.insert(http402Flows).values({
       id: flowId,
-      ownerAddress: normalizedOwnerAddress, // <--- ADDED ISOLATION HERE
+      ownerAddress: normalizedOwnerAddress,
       label: `Agent Task: ${taskType}`,
       method: 'POST',
       endpoint: targetApi,
       requestPayload: requestBody,
     });
 
-    // STEP 3: Attempt the external API call
     let response = await fetch(`${baseUrl}${targetApi}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -98,12 +87,10 @@ export async function POST(request: Request) {
 
     const paymentReq = await response.json();
     
-    // ---> DB ACTION 2 (HTTP FLOW): Record the 402 rejection payload
     await db.update(http402Flows)
       .set({ response402: paymentReq })
       .where(eq(http402Flows.id, flowId));
 
-    // DB ACTION (AUDIT LOG): Create the business audit record
     const logId = randomUUID();
     dbLogId = logId;
     await db.insert(auditLogs).values({
@@ -117,28 +104,51 @@ export async function POST(request: Request) {
       pricePaid: paymentReq.price,
     });
 
-    // STEP 4: Smart Contract Execution
-    const providerRpc = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+    // STEP 4: Gasless EIP-712 Signature Generation
+    const providerRpc = new ethers.JsonRpcProvider(process.env.ZEROG_RPC_URL || 'http://127.0.0.1:8545');
     const agentSigner = new ethers.Wallet(agent.privateKey, providerRpc);
-    const spendGuard = new ethers.Contract(paymentReq.paymentContract, SpendGuardABI.abi, agentSigner);
     
-    const tx = await spendGuard.pay(
-      ethers.encodeBytes32String(agent.agentName),
-      ethers.encodeBytes32String(paymentReq.requestId),
-      ethers.Wallet.createRandom().address, 
-      ethers.parseUnits(paymentReq.price, 6),
-      paymentReq.serviceHash
-    );
-    const receipt = await tx.wait();
+    const domain = {
+      name: 'SpendGuard',
+      version: '1',
+      chainId: (await providerRpc.getNetwork()).chainId,
+      verifyingContract: paymentReq.paymentContract
+    };
 
-    await db.update(auditLogs).set({ status: 'PAID', txHash: receipt.hash }).where(eq(auditLogs.id, logId));
+    const types = {
+      Payment: [
+        { name: 'agentId', type: 'bytes32' },
+        { name: 'requestId', type: 'bytes32' },
+        { name: 'provider', type: 'address' },
+        { name: 'amount', type: 'uint256' },
+        { name: 'serviceHash', type: 'bytes32' }
+      ]
+    };
 
-    // STEP 5: Retry with Proof
+    // Use 18 decimals for native 0G token
+    const amountInWei = ethers.parseUnits(paymentReq.price.toString(), 18);
+    const agentIdBytes = ethers.encodeBytes32String(agent.agentName);
+    const requestIdBytes = ethers.encodeBytes32String(paymentReq.requestId);
+
+    const message = {
+      agentId: agentIdBytes,
+      requestId: requestIdBytes,
+      provider: paymentReq.provider,
+      amount: amountInWei,
+      serviceHash: paymentReq.serviceHash
+    };
+
+    const signature = await agentSigner.signTypedData(domain, types, message);
+    log(`Generated EIP-712 payment signature for ${paymentReq.price} 0G`);
+
+    await db.update(auditLogs).set({ status: 'SIGNED_OFFCHAIN' }).where(eq(auditLogs.id, logId));
+
+    // STEP 5: Retry with Off-Chain Proof
     const paymentProof = Buffer.from(JSON.stringify({
       agentId: agent.agentName,
       requestId: paymentReq.requestId,
       serviceHash: paymentReq.serviceHash,
-      txHash: receipt.hash
+      signature: signature
     })).toString('base64');
 
     response = await fetch(`${baseUrl}${targetApi}`, {
@@ -154,12 +164,10 @@ export async function POST(request: Request) {
         .set({ response200: finalData })
         .where(eq(http402Flows.id, flowId));
 
-      // FIX: Store the exact serviceHash that was anchored on-chain, 
-      // instead of relying on the mock provider's HTTP headers!
       await db.update(auditLogs)
         .set({ 
           status: 'COMPLETED', 
-          contentHash: paymentReq.serviceHash // <--- Changed this line
+          contentHash: paymentReq.serviceHash 
         })
         .where(eq(auditLogs.id, logId));
     } else {
@@ -175,7 +183,7 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Agent execution failed:", error);
     let errorMessage = error.reason || error.message || 'Execution failed';
-    let finalStatus = 'FAILED'; // Default failure
+    let finalStatus = 'FAILED';
 
     if (error.data) {
       try {
@@ -184,10 +192,10 @@ export async function POST(request: Request) {
         if (parsedError) {
           if (parsedError.name === 'BudgetExceeded') {
             finalStatus = 'BUDGET_EXCEEDED';
-            const budgetLimit = Number(ethers.formatUnits(parsedError.args[1], 6));
-            const totalSpent = Number(ethers.formatUnits(parsedError.args[2], 6));
-            const attempted = Number(ethers.formatUnits(parsedError.args[3], 6));
-            errorMessage = `SpendGuard Reverted: Budget Exceeded. Attempted: $${attempted.toFixed(2)}, Remaining: $${(budgetLimit - totalSpent).toFixed(2)}`;
+            const budgetLimit = Number(ethers.formatUnits(parsedError.args[1], 18));
+            const totalSpent = Number(ethers.formatUnits(parsedError.args[2], 18));
+            const attempted = Number(ethers.formatUnits(parsedError.args[3], 18));
+            errorMessage = `SpendGuard Reverted: Budget Exceeded. Attempted: ${attempted.toFixed(4)} 0G, Remaining: ${(budgetLimit - totalSpent).toFixed(4)} 0G`;
           } else if (parsedError.name === 'RequestAlreadyProcessed') {
             finalStatus = 'REPLAY_BLOCKED';
             errorMessage = `SpendGuard Reverted: Replay Attack Prevented.`;
@@ -198,7 +206,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // ---> DB ACTION: Update the database with the exact security block reason!
     if (dbLogId) {
       await db.update(auditLogs).set({ status: finalStatus }).where(eq(auditLogs.id, dbLogId));
     }

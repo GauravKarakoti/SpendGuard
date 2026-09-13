@@ -19,17 +19,15 @@ export default function AgentStatusPanel({ agentName }: { agentName: string }) {
   useEffect(() => {
     async function fetchAgentStatus() {
       try {
-        // 1. Fetch Budget from the Blockchain
         let currentLimit = 0;
         const win = window as any;
         if (typeof window !== 'undefined' && win.ethereum) {
           const provider = new ethers.BrowserProvider(win.ethereum);
           const contract = new ethers.Contract(Addresses.SpendGuard, SpendGuardABI.abi, provider);
           const [limit] = await contract.getBudget(agentId);
-          currentLimit = Number(ethers.formatUnits(limit, 6));
+          currentLimit = Number(ethers.formatUnits(limit, 18)); // Switched to 18 decimals
         }
 
-        // 2. Fetch Activity Counts from the Database
         const res = await fetch('/api/logs/audit');
         const data = await res.json();
 
@@ -37,12 +35,11 @@ export default function AgentStatusPanel({ agentName }: { agentName: string }) {
         let lastActionTime = '—';
 
         if (data && data.length > 0) {
-          // Data is already sorted newest first by our API
           lastActionTime = new Date(data[0].createdAt).toISOString().split('T')[1].slice(0, 8) + ' UTC';
         }
 
         data.forEach((log: any) => {
-          if (log.status === 'COMPLETED' || log.status === 'PAID') authCount++;
+          if (log.status === 'COMPLETED' || log.status === 'SIGNED_OFFCHAIN' || log.status === 'PAID') authCount++;
           else if (log.status === 'BUDGET_EXCEEDED' || log.status === '402_PAYWALL') blockedCount++;
           else if (log.status === 'REPLAY_BLOCKED') replayCount++;
         });
@@ -96,7 +93,7 @@ export default function AgentStatusPanel({ agentName }: { agentName: string }) {
 
       <div className="pt-2 border-t border-border">
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Agent cannot modify its own budget, transfer USDC directly, or bypass the payment contract.
+          Agent utilizes EIP-712 signatures. It cannot modify its own budget, execute transactions, or pay gas.
         </p>
       </div>
 

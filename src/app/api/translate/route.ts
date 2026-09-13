@@ -7,9 +7,9 @@ import { simulateContractPay } from '../payment/verify/route';
 import Addresses from '@/contracts/addresses.json';
 
 const PROVIDER_NAME = 'TranslationService';
-const PRICE_USDC = 2_000_000; // $2.00 in 6-decimal USDC
+const PRICE_0G = 2_000_000; // $2.00 in 6-decimal 0G
 const PAYMENT_CONTRACT = Addresses.SpendGuard;
-const PAYMENT_NETWORK = 'ethereum-sepolia';
+const PAYMENT_NETWORK = '0g-testnet';
 
 // ---------------------------------------------------------------------------
 // ACTUAL Translation Engine (Using free MyMemory API)
@@ -49,11 +49,11 @@ export async function POST(request: Request) {
   // STEP 1 — Paywall
   if (!paymentProofHeader) {
     const requestId = `req_${generateId()}`;
-    const serviceHash = keccak256Mock(JSON.stringify({ provider: PROVIDER_NAME, requestId, price: PRICE_USDC }));
+    const serviceHash = keccak256Mock(JSON.stringify({ provider: PROVIDER_NAME, requestId, price: PRICE_0G }));
 
     return Response.json({
       price: '2.00',
-      currency: 'USDC',
+      currency: '0G',
       provider: PROVIDER_NAME,
       requestId,
       paymentNetwork: PAYMENT_NETWORK,
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
       instructions: 'Submit payment via SpendGuard.pay(agentId, requestId, provider, amount, serviceHash), then retry this request with the X-Payment-Proof header.',
     }, {
       status: 402,
-      headers: { 'Content-Type': 'application/json', 'X-Payment-Required': 'true', 'X-Provider': PROVIDER_NAME, 'X-Price-USDC': '2.00' },
+      headers: { 'Content-Type': 'application/json', 'X-Payment-Required': 'true', 'X-Provider': PROVIDER_NAME, 'X-Price-0G': '2.00' },
     });
   }
 
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
 
   const verificationResult = simulateContractPay({
     agentId: proof.agentId, requestId: proof.requestId, provider: PROVIDER_NAME,
-    amount: PRICE_USDC, serviceHash: proof.serviceHash, txHash: proof.txHash,
+    amount: PRICE_0G, serviceHash: proof.serviceHash, txHash: proof.txHash,
   });
 
   if (!verificationResult.success) {
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     provider: PROVIDER_NAME,
     service: `${sourceLang.toUpperCase()} → ${targetLang.toUpperCase()} translation`,
     amount: '2.00',
-    currency: 'USDC',
+    currency: '0G',
     paymentTx: verificationResult.txHash,
     blockNumber: verificationResult.blockNumber,
     resource: translatedText,
