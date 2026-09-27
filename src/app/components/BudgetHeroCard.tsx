@@ -117,7 +117,9 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
   const isNearLimit = utilizationPct >= 80;
   
   const parsedNewLimit = Number(newLimitInput);
-  const showsVaultWarning = !isNaN(parsedNewLimit) && parsedNewLimit > vaultBalance;
+  const newRemainingBudget = parsedNewLimit - budgetData.spent;
+  // Only warn if they are opening up NEW budget headroom that exceeds their current vault liquidity
+  const showsVaultWarning = !isNaN(parsedNewLimit) && newRemainingBudget > 0 && vaultBalance < newRemainingBudget;
 
   if (loading) return <div className="glass-card rounded-xl p-5 h-full animate-pulse bg-muted" />;
 
@@ -186,7 +188,7 @@ export default function BudgetHeroCard({ agentName }: { agentName: string }) {
           </div>
           {showsVaultWarning && (
             <p className="text-[11px] text-amber-500/90 bg-amber-950/30 px-2.5 py-2 rounded border border-amber-900/50 mt-1 leading-relaxed">
-              ⚠️ <strong>Notice:</strong> Your actual vault balance is <strong>{format0G(vaultBalance)} 0G</strong>. You will need to deposit more funds for the agent to fully utilize this new limit.
+              ⚠️ <strong>Notice:</strong> Your new available budget will be <strong>{format0G(newRemainingBudget)} 0G</strong>, but your vault only has <strong>{format0G(vaultBalance)} 0G</strong>. Deposit more funds to fully utilize this limit.
             </p>
           )}
         </div>
